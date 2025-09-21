@@ -1,4 +1,4 @@
-/* OurMeals - Minimalist styling */
+/* OurMeals - Mobile-first styling (enhanced) */
 
 :root {
   --bg: #f7f7fb;
@@ -8,6 +8,7 @@
   --primary: #2563eb;
   --primary-contrast: #ffffff;
   --border: #e5e7eb;
+  --radius: 12px;
 }
 
 * {
@@ -21,6 +22,8 @@ html, body {
   color: var(--text);
   font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
   line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 header, footer {
@@ -43,7 +46,7 @@ header h1 {
 main {
   max-width: 1000px;
   margin: 0 auto;
-  padding: 8px 16px 32px;
+  padding: 8px 16px 88px; /* extra bottom padding for fixed tabbar */
   display: grid;
   grid-template-columns: 1fr;
   gap: 16px;
@@ -52,8 +55,9 @@ main {
 .card {
   background: var(--card);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius);
   padding: 16px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
 }
 
 h2 {
@@ -76,11 +80,12 @@ label {
 
 input[type="text"],
 textarea,
-select {
+select,
+input[type="number"] {
   width: 100%;
   padding: 10px 12px;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: 10px;
   font-size: 14px;
   background: #fff;
   color: var(--text);
@@ -102,7 +107,7 @@ button {
   background: var(--primary);
   color: var(--primary-contrast);
   padding: 10px 14px;
-  border-radius: 6px;
+  border-radius: 10px;
   font-size: 14px;
   cursor: pointer;
 }
@@ -130,10 +135,11 @@ button:disabled {
   align-items: center;
   justify-content: space-between;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: 10px;
   padding: 10px 12px;
   margin-bottom: 8px;
   gap: 8px;
+  background: var(--card);
 }
 
 .list .row {
@@ -177,6 +183,11 @@ td select {
   width: 100%;
 }
 
+.servings-input {
+  min-width: 64px;
+  height: 40px;
+}
+
 /* Hints */
 .hint {
   font-size: 12px;
@@ -190,15 +201,94 @@ footer {
   color: var(--muted);
 }
 
+/* Bottom Tab Bar (mobile) */
+.tabbar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  gap: 8px;
+  border-top: 1px solid var(--border);
+  background: var(--card);
+  padding: 6px 12px calc(6px + env(safe-area-inset-bottom));
+  z-index: 1000;
+}
+
+.tabbar button {
+  flex: 1 1 0;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  padding: 10px 8px;
+  border-radius: 10px;
+  font-weight: 600;
+}
+
+.tabbar button[aria-selected="true"] {
+  color: var(--primary);
+  background: rgba(37, 99, 235, 0.10);
+  border-color: rgba(37, 99, 235, 0.20);
+}
+
+/* Tab panels visibility (JS toggles [hidden]) */
+[role="tabpanel"][hidden] {
+  display: none;
+}
+
+/* Focus accessibility */
+:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
 /* Responsive */
 @media (min-width: 900px) {
   main {
     grid-template-columns: 1fr 1fr;
+    padding-bottom: 24px; /* no bottom bar overlay impact on desktop */
   }
 
-  /* Make meal plan and grocery list full width */
-  section.card:nth-of-type(3),
-  section.card:nth-of-type(4) {
+  /* Make meal plan and grocery full width */
+  #section-plan,
+  #section-grocery {
     grid-column: 1 / -1;
+  }
+
+  /* Tab bar can be hidden on desktop if desired */
+  .tabbar {
+    position: static;
+    border: 0;
+    padding: 0;
+    gap: 12px;
+    max-width: 1000px;
+    margin: -8px auto 8px;
+    background: transparent;
+  }
+}
+
+/* Dark mode */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0b0d12;
+    --card: #0f141b;
+    --text: #e6e8ee;
+    --muted: #9aa4b2;
+    --border: #1f2733;
+    --primary-contrast: #ffffff;
+  }
+
+  thead th {
+    background: #111824;
+  }
+
+  button.secondary {
+    background: #19202b;
+    color: #e6e8ee;
+  }
+
+  .tabbar button[aria-selected="true"] {
+    background: rgba(37, 99, 235, 0.18);
+    border-color: rgba(37, 99, 235, 0.28);
   }
 }

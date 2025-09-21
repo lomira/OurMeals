@@ -16,77 +16,13 @@
     </header>
 
     <main>
-      <!-- Add New Recipe -->
-      <section class="card">
-        <h2>Ajouter / Modifier une recette</h2>
-        <form id="recipe-form">
-          <div class="form-row">
-            <label for="recipe-name">Nom</label>
-            <input
-              type="text"
-              id="recipe-name"
-              name="name"
-              placeholder="ex. Spaghettis bolognaise"
-              required
-            />
-          </div>
-
-          <div class="form-row">
-            <label for="recipe-servings">Portions</label>
-            <input
-              type="number"
-              id="recipe-servings"
-              name="baseServings"
-              min="1"
-              value="1"
-            />
-          </div>
-
-          <div class="form-row">
-            <label for="recipe-ingredients"
-              >Ingrédients (un par ligne ou séparés par des virgules)</label
-            >
-            <textarea
-              id="recipe-ingredients"
-              name="ingredients"
-              rows="5"
-              placeholder="boeuf haché
-oignon
-sauce tomate
-spaghettis"
-              required
-            ></textarea>
-          </div>
-
-          <div class="form-actions">
-            <button type="submit" id="save-recipe">
-              Enregistrer la recette
-            </button>
-            <button type="button" id="cancel-edit" class="secondary" hidden>
-              Annuler la modification
-            </button>
-          </div>
-
-          <p class="hint">
-            Astuce&nbsp;: Vous pouvez coller les ingrédients ligne par ligne ou
-            séparés par des virgules. L’application les normalisera.
-          </p>
-          <p class="hint" id="edit-warning" hidden>
-            La modification recrée la recette (pas d’endpoint de mise à jour),
-            donc toute affectation dans le plan de repas pour l’ancienne recette
-            sera supprimée.
-          </p>
-        </form>
-      </section>
-
-      <!-- Recipes List -->
-      <section class="card">
-        <h2>Recettes</h2>
-        <ul id="recipes-list" class="list"></ul>
-      </section>
-
-      <!-- Weekly Meal Plan -->
-      <section class="card">
+      <!-- Weekly Meal Plan (1st panel) -->
+      <section
+        id="section-plan"
+        class="card"
+        role="tabpanel"
+        aria-labelledby="tab-plan"
+      >
         <h2>Plan de repas hebdomadaire</h2>
         <div class="table-wrapper">
           <table id="meal-plan-table">
@@ -109,8 +45,13 @@ spaghettis"
         </p>
       </section>
 
-      <!-- Grocery List -->
-      <section class="card">
+      <!-- Grocery List (2nd panel) -->
+      <section
+        id="section-grocery"
+        class="card"
+        role="tabpanel"
+        aria-labelledby="tab-courses"
+      >
         <h2>Liste de courses</h2>
         <div class="form-actions">
           <label
@@ -124,7 +65,112 @@ spaghettis"
         </div>
         <ul id="grocery-list" class="list"></ul>
       </section>
+
+      <!-- Recipes (3rd panel) -->
+      <section
+        id="section-recipes"
+        class="card"
+        role="tabpanel"
+        aria-labelledby="tab-recettes"
+      >
+        <h2>Recettes</h2>
+
+        <!-- Collapsible form drawer -->
+        <details id="recipe-drawer">
+          <summary>Ajouter / Modifier une recette</summary>
+
+          <form id="recipe-form">
+            <div class="form-row">
+              <label for="recipe-name">Nom</label>
+              <input
+                type="text"
+                id="recipe-name"
+                name="name"
+                placeholder="ex. Spaghettis bolognaise"
+                required
+              />
+            </div>
+
+            <div class="form-row">
+              <label for="recipe-servings">Portions</label>
+              <input
+                type="number"
+                id="recipe-servings"
+                name="baseServings"
+                min="1"
+                value="1"
+              />
+            </div>
+
+            <div class="form-row">
+              <label for="recipe-ingredients"
+                >Ingrédients (un par ligne ou séparés par des virgules)</label
+              >
+              <textarea
+                id="recipe-ingredients"
+                name="ingredients"
+                rows="5"
+                placeholder="boeuf haché
+oignon
+sauce tomate
+spaghettis"
+                required
+              ></textarea>
+            </div>
+
+            <div class="form-actions">
+              <button type="submit" id="save-recipe">
+                Enregistrer la recette
+              </button>
+              <button type="button" id="cancel-edit" class="secondary" hidden>
+                Annuler la modification
+              </button>
+            </div>
+
+            <p class="hint">
+              Astuce&nbsp;: Vous pouvez coller les ingrédients ligne par ligne
+              ou séparés par des virgules. L’application les normalisera.
+            </p>
+            <p class="hint" id="edit-warning" hidden>
+              La modification recrée la recette (pas d’endpoint de mise à jour),
+              donc toute affectation dans le plan de repas pour l’ancienne
+              recette sera supprimée.
+            </p>
+          </form>
+        </details>
+
+        <!-- Recipes List -->
+        <ul id="recipes-list" class="list"></ul>
+      </section>
     </main>
+
+    <!-- Bottom tab bar (mobile) -->
+    <nav class="tabbar" role="tablist" aria-label="Navigation">
+      <button
+        id="tab-plan"
+        role="tab"
+        aria-controls="section-plan"
+        aria-selected="true"
+      >
+        Plan
+      </button>
+      <button
+        id="tab-courses"
+        role="tab"
+        aria-controls="section-grocery"
+        aria-selected="false"
+      >
+        Courses
+      </button>
+      <button
+        id="tab-recettes"
+        role="tab"
+        aria-controls="section-recipes"
+        aria-selected="false"
+      >
+        Recettes
+      </button>
+    </nav>
 
     <footer>
       <p>

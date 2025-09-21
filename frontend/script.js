@@ -45,6 +45,78 @@ const generateGroceryBtn = document.getElementById("generate-grocery");
 const cancelEditBtn = document.getElementById("cancel-edit");
 const editWarningEl = document.getElementById("edit-warning");
 
+// Tabs: bottom navigation and tabpanels
+const tabButtons = {
+  plan: document.getElementById("tab-plan"),
+  courses: document.getElementById("tab-courses"),
+  recettes: document.getElementById("tab-recettes")
+};
+const tabPanels = {
+  plan: document.getElementById("section-plan"),
+  courses: document.getElementById("section-grocery"),
+  recettes: document.getElementById("section-recipes")
+};
+
+function setActiveTab(key) {
+  for (const k of Object.keys(tabButtons)) {
+    const btn = tabButtons[k];
+    const panel = tabPanels[k];
+    const selected = k === key;
+    if (btn) btn.setAttribute("aria-selected", selected ? "true" : "false");
+    if (panel) {
+      if (selected) {
+        panel.removeAttribute("hidden");
+      } else {
+        panel.setAttribute("hidden", "");
+      }
+    }
+  }
+  const hash = key === "plan" ? "#plan" : (key === "courses" ? "#courses" : "#recettes");
+  if (location.hash !== hash) {
+    history.replaceState(null, "", hash);
+  }
+}
+
+function setupTabs() {
+  const defaultKey = (location.hash || "").replace("#", "");
+  const initial = (defaultKey === "courses" || defaultKey === "recettes") ? defaultKey : "plan";
+  setActiveTab(initial);
+
+  const order = ["plan", "courses", "recettes"];
+
+  for (const [k, btn] of Object.entries(tabButtons)) {
+    if (!btn) continue;
+
+    btn.addEventListener("click", () => setActiveTab(k));
+
+    btn.addEventListener("keydown", (e) => {
+      if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
+        const idx = order.indexOf(k);
+        const next = e.key === "ArrowRight" ? (idx + 1) % order.length : (idx - 1 + order.length) % order.length;
+        const nextKey = order[next];
+        setActiveTab(nextKey);
+        tabButtons[nextKey]?.focus();
+        e.preventDefault();
+      } else if (e.key === "Home") {
+        setActiveTab("plan");
+        tabButtons["plan"]?.focus();
+        e.preventDefault();
+      } else if (e.key === "End") {
+        setActiveTab("recettes");
+        tabButtons["recettes"]?.focus();
+        e.preventDefault();
+      }
+    });
+  }
+
+  window.addEventListener("hashchange", () => {
+    const key = (location.hash || "").replace("#", "");
+    if (key === "plan" || key === "courses" || key === "recettes") {
+      setActiveTab(key);
+    }
+  });
+}
+
 // Utilities
 const api = async (path, options = {}) => {
   const res = await fetch(`${API_BASE}${path}`, {
@@ -209,6 +281,8 @@ function renderMealPlanGrid() {
       const td = document.createElement("td");
 
       const select = document.createElement("select");
+      const mealLabel = meal === "breakfast" ? "Petit-déjeuner" : (meal === "lunch" ? "Déjeuner" : "Dîner");
+      select.setAttribute("aria-label", `${mealLabel} du ${capitalizeFirst(label)}`);
       for (const opt of recipeOptions) {
         const optionEl = document.createElement("option");
         optionEl.value = opt._id;
@@ -231,8 +305,10 @@ function renderMealPlanGrid() {
       // Servings input per cell
       const servingsInput = document.createElement("input");
       servingsInput.type = "number";
+      servingsInput.inputMode = "numeric";
       servingsInput.min = "1";
       servingsInput.className = "servings-input";
+      servingsInput.setAttribute("aria-label", `${mealLabel} - portions du ${capitalizeFirst(label)}`);
       servingsInput.placeholder = "Pers.";
       servingsInput.style.marginLeft = "8px";
       servingsInput.style.width = "70px";
@@ -553,6 +629,9 @@ function generateGroceryList(startKey) {
 
 // Recipe form handling
 function startEditRecipe(recipe) {
+  if (typeof setActiveTab === "function") setActiveTab("recettes");
+  const drawer = document.getElementById("recipe-drawer");
+  if (drawer) drawer.open = true;
   editingRecipeId = recipe._id;
   nameInput.value = recipe.name;
   const lines = (recipe.ingredients || []).map((ing) => {
@@ -680,9 +759,10 @@ async function refreshAll() {
   setGroceryStartDateBounds();
 }
 
-// Initialize app
+/** Initialize app */
 (async function init() {
   try {
+    setupTabs();
     await refreshAll();
   } catch (err) {
     console.error("Initialization failed:", err);
