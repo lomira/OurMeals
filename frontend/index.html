@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>OurMeals - Meal & Grocery Planner</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!-- Minimalist styling -->
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <header>
+      <h1>OurMeals</h1>
+      <p class="subtitle">Simple recipes, weekly meal plan, and grocery list</p>
+    </header>
+
+    <main>
+      <!-- Add New Recipe -->
+      <section class="card">
+        <h2>Add / Edit Recipe</h2>
+        <form id="recipe-form">
+          <div class="form-row">
+            <label for="recipe-name">Name</label>
+            <input
+              type="text"
+              id="recipe-name"
+              name="name"
+              placeholder="e.g., Spaghetti Bolognese"
+              required
+            />
+          </div>
+
+          <div class="form-row">
+            <label for="recipe-ingredients"
+              >Ingredients (one per line or comma-separated)</label
+            >
+            <textarea
+              id="recipe-ingredients"
+              name="ingredients"
+              rows="5"
+              placeholder="ground beef
+onion
+tomato sauce
+spaghetti"
+              required
+            ></textarea>
+          </div>
+
+          <div class="form-actions">
+            <button type="submit" id="save-recipe">Save Recipe</button>
+            <button type="button" id="cancel-edit" class="secondary" hidden>
+              Cancel Edit
+            </button>
+          </div>
+
+          <p class="hint">
+            Tip: You can paste ingredients as lines or comma-separated. The app
+            will normalize them.
+          </p>
+          <p class="hint" id="edit-warning" hidden>
+            Editing recreates the recipe (no update endpoint), so any meal plan
+            assignments for the old recipe will be cleared.
+          </p>
+        </form>
+      </section>
+
+      <!-- Recipes List -->
+      <section class="card">
+        <h2>Recipes</h2>
+        <ul id="recipes-list" class="list"></ul>
+      </section>
+
+      <!-- Weekly Meal Plan -->
+      <section class="card">
+        <h2>Weekly Meal Plan</h2>
+        <div class="table-wrapper">
+          <table id="meal-plan-table">
+            <thead>
+              <tr>
+                <th>Day</th>
+                <th>Breakfast</th>
+                <th>Lunch</th>
+                <th>Dinner</th>
+              </tr>
+            </thead>
+            <tbody id="meal-plan-body">
+              <!-- Rows for Monday-Sunday rendered by script.js -->
+            </tbody>
+          </table>
+        </div>
+        <p class="hint">
+          Selecting a recipe in a cell assigns it to that slot. Changing a
+          selection will unassign the previous recipe from that slot.
+        </p>
+      </section>
+
+      <!-- Grocery List -->
+      <section class="card">
+        <h2>Grocery List</h2>
+        <div class="form-actions">
+          <button id="generate-grocery">Generate Grocery List</button>
+        </div>
+        <ul id="grocery-list" class="list"></ul>
+      </section>
+    </main>
+
+    <footer>
+      <p>
+        Backend API must be running. For local dev, default is
+        http://localhost:5000. On Render, set API_BASE in script.js.
+      </p>
+    </footer>
+
+    <!-- Configure API base explicitly for frontend -->
+    <script>
+      // Change this when deploying the frontend separately (e.g., to Render)
+      window.API_BASE = "http://localhost:5000";
+    </script>
+    <!-- App logic -->
+    <script src="script.js"></script>
+  </body>
+</html>
