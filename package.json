@@ -4,6 +4,7 @@
   "version": "1.0.0",
   "description": "Monorepo for OurMeals (frontend + backend)",
   "scripts": {
+    "postinstall": "npm install --prefix backend",
     "build": "npm install --prefix backend",
     "start": "node backend/server.js",
     "dev": "npm run dev --prefix backend"
