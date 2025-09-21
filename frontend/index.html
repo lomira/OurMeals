@@ -25,14 +25,6 @@
         Plan
       </button>
       <button
-        id="tab-courses"
-        role="tab"
-        aria-controls="section-grocery"
-        aria-selected="false"
-      >
-        Courses
-      </button>
-      <button
         id="tab-recettes"
         role="tab"
         aria-controls="section-recipes"
@@ -43,7 +35,7 @@
     </nav>
 
     <main>
-      <!-- Weekly Meal Plan (1st panel) -->
+      <!-- Weekly Meal Plan -->
       <section
         id="section-plan"
         class="card"
@@ -70,15 +62,9 @@
           Sélectionner une recette dans une cellule l’assigne à cet emplacement.
           Changer la sélection désassignera la recette précédente.
         </p>
-      </section>
 
-      <!-- Grocery List (2nd panel) -->
-      <section
-        id="section-grocery"
-        class="card"
-        role="tabpanel"
-        aria-labelledby="tab-courses"
-      >
+        <!-- Grocery List moved inside Plan (bottom) -->
+        <hr />
         <h2>Liste de courses</h2>
         <div class="form-actions">
           <label
@@ -93,78 +79,129 @@
         <ul id="grocery-list" class="list"></ul>
       </section>
 
-      <!-- Recipes (3rd panel) -->
+      <!-- Recipes -->
       <section
         id="section-recipes"
         class="card"
         role="tabpanel"
         aria-labelledby="tab-recettes"
+        hidden
       >
         <h2>Recettes</h2>
 
-        <!-- Collapsible form drawer -->
-        <details id="recipe-drawer">
-          <summary>Ajouter / Modifier une recette</summary>
+        <!-- Two separate panels: Add and Modify -->
+        <div class="recipes-grid">
+          <!-- Add New Recipe -->
+          <div class="panel">
+            <h3>Ajouter une recette</h3>
+            <form id="recipe-form">
+              <div class="form-row">
+                <label for="recipe-name">Nom</label>
+                <input
+                  type="text"
+                  id="recipe-name"
+                  name="name"
+                  placeholder="ex. Spaghettis bolognaise"
+                  required
+                />
+              </div>
 
-          <form id="recipe-form">
-            <div class="form-row">
-              <label for="recipe-name">Nom</label>
-              <input
-                type="text"
-                id="recipe-name"
-                name="name"
-                placeholder="ex. Spaghettis bolognaise"
-                required
-              />
-            </div>
+              <div class="form-row">
+                <label for="recipe-servings">Portions</label>
+                <input
+                  type="number"
+                  id="recipe-servings"
+                  name="baseServings"
+                  min="1"
+                  value="1"
+                />
+              </div>
 
-            <div class="form-row">
-              <label for="recipe-servings">Portions</label>
-              <input
-                type="number"
-                id="recipe-servings"
-                name="baseServings"
-                min="1"
-                value="1"
-              />
-            </div>
-
-            <div class="form-row">
-              <label for="recipe-ingredients"
-                >Ingrédients (un par ligne ou séparés par des virgules)</label
-              >
-              <textarea
-                id="recipe-ingredients"
-                name="ingredients"
-                rows="5"
-                placeholder="boeuf haché
+              <div class="form-row">
+                <label for="recipe-ingredients"
+                  >Ingrédients (un par ligne ou séparés par des virgules)</label
+                >
+                <textarea
+                  id="recipe-ingredients"
+                  name="ingredients"
+                  rows="5"
+                  placeholder="boeuf haché
 oignon
 sauce tomate
 spaghettis"
-                required
-              ></textarea>
-            </div>
+                  required
+                ></textarea>
+              </div>
 
-            <div class="form-actions">
-              <button type="submit" id="save-recipe">
-                Enregistrer la recette
-              </button>
-              <button type="button" id="cancel-edit" class="secondary" hidden>
-                Annuler la modification
-              </button>
-            </div>
+              <div class="form-actions">
+                <button type="submit" id="save-recipe">
+                  Enregistrer la recette
+                </button>
+              </div>
 
-            <p class="hint">
-              Astuce&nbsp;: Vous pouvez coller les ingrédients ligne par ligne
-              ou séparés par des virgules. L’application les normalisera.
-            </p>
-            <p class="hint" id="edit-warning" hidden>
-              La modification recrée la recette (pas d’endpoint de mise à jour),
-              donc toute affectation dans le plan de repas pour l’ancienne
-              recette sera supprimée.
-            </p>
-          </form>
-        </details>
+              <p class="hint">
+                Astuce&nbsp;: Vous pouvez coller les ingrédients ligne par ligne
+                ou séparés par des virgules. L’application les normalisera.
+              </p>
+            </form>
+          </div>
+
+          <!-- Modify Existing Recipe -->
+          <div class="panel">
+            <h3>Modifier une recette</h3>
+            <form id="edit-recipe-form">
+              <div class="form-row">
+                <label for="edit-recipe-name">Nom</label>
+                <input
+                  type="text"
+                  id="edit-recipe-name"
+                  name="name"
+                  placeholder="Sélectionnez « Modifier » dans la liste"
+                  required
+                />
+              </div>
+
+              <div class="form-row">
+                <label for="edit-recipe-servings">Portions</label>
+                <input
+                  type="number"
+                  id="edit-recipe-servings"
+                  name="baseServings"
+                  min="1"
+                  value="1"
+                />
+              </div>
+
+              <div class="form-row">
+                <label for="edit-recipe-ingredients"
+                  >Ingrédients (un par ligne ou séparés par des virgules)</label
+                >
+                <textarea
+                  id="edit-recipe-ingredients"
+                  name="ingredients"
+                  rows="5"
+                  placeholder="Sélectionnez « Modifier » dans la liste"
+                  required
+                ></textarea>
+              </div>
+
+              <div class="form-actions">
+                <button type="submit" id="update-recipe">
+                  Mettre à jour la recette
+                </button>
+                <button type="button" id="edit-cancel" class="secondary">
+                  Annuler
+                </button>
+              </div>
+
+              <p class="hint" id="edit-warning">
+                La modification recrée la recette (pas d’endpoint de mise à
+                jour), donc toute affectation dans le plan de repas pour
+                l’ancienne recette sera supprimée.
+              </p>
+            </form>
+          </div>
+        </div>
 
         <!-- Recipes List -->
         <ul id="recipes-list" class="list"></ul>

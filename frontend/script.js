@@ -42,18 +42,21 @@ const recipesListEl = document.getElementById("recipes-list");
 const mealPlanBodyEl = document.getElementById("meal-plan-body");
 const groceryListEl = document.getElementById("grocery-list");
 const generateGroceryBtn = document.getElementById("generate-grocery");
-const cancelEditBtn = document.getElementById("cancel-edit");
+// Edit form elements
+const editForm = document.getElementById("edit-recipe-form");
+const editNameInput = document.getElementById("edit-recipe-name");
+const editIngredientsInput = document.getElementById("edit-recipe-ingredients");
+const editBaseServingsInput = document.getElementById("edit-recipe-servings");
+const editCancelBtn = document.getElementById("edit-cancel");
 const editWarningEl = document.getElementById("edit-warning");
 
 // Tabs: bottom navigation and tabpanels
 const tabButtons = {
   plan: document.getElementById("tab-plan"),
-  courses: document.getElementById("tab-courses"),
   recettes: document.getElementById("tab-recettes")
 };
 const tabPanels = {
   plan: document.getElementById("section-plan"),
-  courses: document.getElementById("section-grocery"),
   recettes: document.getElementById("section-recipes")
 };
 
@@ -71,7 +74,7 @@ function setActiveTab(key) {
       }
     }
   }
-  const hash = key === "plan" ? "#plan" : (key === "courses" ? "#courses" : "#recettes");
+  const hash = key === "plan" ? "#plan" : "#recettes";
   if (location.hash !== hash) {
     history.replaceState(null, "", hash);
   }
@@ -79,10 +82,10 @@ function setActiveTab(key) {
 
 function setupTabs() {
   const defaultKey = (location.hash || "").replace("#", "");
-  const initial = (defaultKey === "courses" || defaultKey === "recettes") ? defaultKey : "plan";
+  const initial = (defaultKey === "recettes") ? defaultKey : "plan";
   setActiveTab(initial);
 
-  const order = ["plan", "courses", "recettes"];
+  const order = ["plan", "recettes"];
 
   for (const [k, btn] of Object.entries(tabButtons)) {
     if (!btn) continue;
@@ -111,7 +114,7 @@ function setupTabs() {
 
   window.addEventListener("hashchange", () => {
     const key = (location.hash || "").replace("#", "");
-    if (key === "plan" || key === "courses" || key === "recettes") {
+    if (key === "plan" || key === "recettes") {
       setActiveTab(key);
     }
   });
@@ -630,35 +633,39 @@ function generateGroceryList(startKey) {
 // Recipe form handling
 function startEditRecipe(recipe) {
   if (typeof setActiveTab === "function") setActiveTab("recettes");
-  const drawer = document.getElementById("recipe-drawer");
-  if (drawer) drawer.open = true;
   editingRecipeId = recipe._id;
-  nameInput.value = recipe.name;
+
+  // Populate edit form fields
+  if (editNameInput) editNameInput.value = recipe.name;
+
   const lines = (recipe.ingredients || []).map((ing) => {
     if (typeof ing === "string") return ing;
     if (ing && typeof ing === "object") {
       if (ing.raw) return ing.raw;
       const parts = [];
-      if (ing.qty != null && ing.qty !== "") parts.push(String(ing.qty));
+      if (typeof ing.qty !== "undefined" && ing.qty !== null && ing.qty !== "") parts.push(String(ing.qty));
       if (ing.unit) parts.push(String(ing.unit));
       if (ing.name) parts.push(String(ing.name));
       return parts.join(" ").trim();
     }
     return "";
   }).filter(Boolean);
-  ingredientsInput.value = lines.join("\n");
-  baseServingsInput.value = (recipe.baseServings && Number(recipe.baseServings) >= 1) ? String(Math.floor(Number(recipe.baseServings))) : "1";
-  cancelEditBtn.hidden = false;
-  editWarningEl.hidden = false;
-  nameInput.focus();
+
+  if (editIngredientsInput) editIngredientsInput.value = lines.join("\n");
+  if (editBaseServingsInput) {
+    editBaseServingsInput.value = (recipe.baseServings && Number(recipe.baseServings) >= 1)
+      ? String(Math.floor(Number(recipe.baseServings)))
+      : "1";
+  }
+
+  if (editWarningEl) editWarningEl.hidden = false;
+  if (editNameInput) editNameInput.focus();
 }
 
 function resetForm() {
   editingRecipeId = null;
   recipeForm.reset();
   baseServingsInput.value = "1";
-  cancelEditBtn.hidden = true;
-  editWarningEl.hidden = true;
 }
 
 async function handleDeleteRecipe(id) {
@@ -711,11 +718,6 @@ recipeForm.addEventListener("submit", async (e) => {
   }
 
   try {
-    // If editing: recreate by deleting old then creating new
-    if (editingRecipeId) {
-      await api(`/api/recipes/${editingRecipeId}`, { method: "DELETE" });
-      editingRecipeId = null;
-    }
 
     // Create new recipe
     await api("/api/recipes", {
@@ -735,9 +737,48 @@ recipeForm.addEventListener("submit", async (e) => {
   }
 });
 
-cancelEditBtn.addEventListener("click", () => {
-  resetForm();
-});
+if (editForm) {
+  editForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const name = editNameInput.value.trim();
+    const ingredientsStr = editIngredientsInput.value;
+    const baseServings = Math.max(1, parseInt(editBaseServingsInput.value, 10) || 1);
+
+    if (!name) {
+      alert("Le nom est requis.");
+      return;
+    }
+
+    try {
+      if (editingRecipeId) {
+        await api(`/api/recipes/${editingRecipeId}`, { method: "DELETE" });
+        editingRecipeId = null;
+      }
+
+      await api("/api/recipes", {
+        method: "POST",
+        body: JSON.stringify({
+          name,
+          ingredients: ingredientsStr,
+          baseServings
+        })
+      });
+
+      editForm.reset();
+      await refreshAll();
+    } catch (err) {
+      alert("Échec de l’enregistrement de la recette. Voir la console pour plus de détails.");
+      console.error(err);
+    }
+  });
+}
+
+if (editCancelBtn) {
+  editCancelBtn.addEventListener("click", () => {
+    editingRecipeId = null;
+    if (editForm) editForm.reset();
+  });
+}
 
 // Grocery list button
 generateGroceryBtn.addEventListener("click", () => {

@@ -239,6 +239,30 @@ footer {
   outline-offset: 2px;
 }
 
+/* Recipes two-panel layout */
+.recipes-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+.panel {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px;
+  background: var(--card);
+}
+.panel h3 {
+  margin: 0 0 8px;
+  font-size: 16px;
+}
+
+/* Divider */
+hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 16px 0;
+}
+
 /* Responsive */
 @media (min-width: 900px) {
   main {
@@ -261,5 +285,9 @@ footer {
     padding: 6px 12px;
     border-bottom: 1px solid var(--border);
     background: var(--card);
+  }
+
+  .recipes-grid {
+    grid-template-columns: 1fr 1fr;
   }
 }
