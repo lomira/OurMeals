@@ -2,6 +2,7 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
+const path = require('path');
 require('dotenv').config();
 
 // Create Express app
@@ -107,10 +108,7 @@ const recipeSchema = new mongoose.Schema(
 // Create the Recipe model
 const Recipe = mongoose.model('Recipe', recipeSchema);
 
-/* Health check/root route */
-app.get('/', (_req, res) => {
-  res.send('OurMeals API is running');
-});
+/* Root route will be served by static frontend below */
 
 /* Health endpoint with DB status */
 app.get('/api/health', (_req, res) => {
@@ -252,6 +250,18 @@ app.put('/api/recipes/:id/mealplan', async (req, res) => {
     console.error('PUT /api/recipes/:id/mealplan error:', error);
     res.status(500).json({ error: 'Failed to update meal plan' });
   }
+});
+
+// Serve frontend static files
+const frontendDir = path.join(__dirname, '../frontend');
+app.use(express.static(frontendDir));
+
+// SPA fallback: send index.html for non-API routes
+app.get('*', (req, res) => {
+  if (req.path.startsWith('/api/')) {
+    return res.status(404).json({ error: 'Not found' });
+  }
+  res.sendFile(path.join(frontendDir, 'index.html'));
 });
 
 // Start the server

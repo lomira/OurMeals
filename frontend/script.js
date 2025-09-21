@@ -16,7 +16,10 @@
 
 // Change this when deploying the frontend separately from the backend.
 // If hosted together behind the same domain, you can leave as '' (relative).
-const API_BASE = window.API_BASE || "http://localhost:5000";
+const API_BASE =
+  (typeof window !== "undefined" && Object.prototype.hasOwnProperty.call(window, "API_BASE"))
+    ? window.API_BASE
+    : ((location.hostname === "localhost" || location.hostname === "127.0.0.1") ? "http://localhost:5000" : "");
 
 // Special hidden recipe used to store the global weekly meal plan.
 // This stays out of the visible recipe list.
