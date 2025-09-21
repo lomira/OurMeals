@@ -69,14 +69,37 @@ const VOLUME_UNITS = {
 
 const COUNT_UNITS = new Set(['unit', 'pc', 'piece', 'x', 'count']);
 
-const IRREGULARS = { tomatoes: 'tomato', potatoes: 'potato', leaves: 'leaf' };
+const IRREGULARS = {
+  // English
+  tomatoes: 'tomato',
+  potatoes: 'potato',
+  leaves: 'leaf',
+  // French
+  'tomates': 'tomate',
+  'oignons': 'oignon',
+  'poivrons': 'poivron',
+  'carottes': 'carotte',
+  'œufs': 'œuf',
+  'oeufs': 'œuf',
+  'choux': 'chou',
+  'eaux': 'eau',
+  'feuilles': 'feuille',
+  'gousses': 'gousse',
+  'tranches': 'tranche',
+  'pommes de terre': 'pomme de terre'
+};
 
 function singularizeName(name) {
-  const n = String(name || '').toLowerCase().trim();
+  let n = String(name || '').toLowerCase().trim().replace(/\s+/g, ' ');
+  // Strip common French determiners/prepositions
+  n = n.replace(/^(?:de|d'|d’|du|des|de la|de l'|de l’)\s+/i, '');
   if (IRREGULARS[n]) return IRREGULARS[n];
+  // English plural handling
   if (n.endsWith('ies')) return n.slice(0, -3) + 'y';
   if (n.endsWith('es') && !n.endsWith('ses')) return n.slice(0, -2);
   if (n.endsWith('s') && !n.endsWith('ss')) return n.slice(0, -1);
+  // French pattern eaux -> eau
+  if (n.endsWith('eaux')) return n.slice(0, -1);
   return n;
 }
 
@@ -84,8 +107,8 @@ function parseIngredientString(raw) {
   if (typeof raw !== 'string') return null;
   const text = raw.trim();
   if (!text) return null;
-  // qty (int/float) + optional unit + name
-  const m = text.match(/^(\d+(?:[.,]\d+)?)\s*([a-zA-Z]+)?\s+(.*)$/);
+  // qty (int/float) + optional unit (unicode) + name
+  const m = text.match(/^(\d+(?:[.,]\d+)?)\s*([^\s\d]+)?\s+(.*)$/u);
   let qty = null, unit = null, name = text;
   if (m) {
     qty = parseFloat(m[1].replace(',', '.'));
@@ -94,17 +117,26 @@ function parseIngredientString(raw) {
   }
   name = singularizeName(name.replace(/\s+/g, ' '));
   if (unit) {
-    unit = unit.toLowerCase();
+    unit = unit.toLowerCase().replace(/\./g, '').replace(/\s+/g, '');
     if (unit === 'kgs') unit = 'kg';
-    if (unit === 'grams' || unit === 'gr' || unit === 'gms') unit = 'g';
+    if (unit === 'grams' || unit === 'gr' || unit === 'gms' || unit === 'gramme' || unit === 'grammes') unit = 'g';
+    if (unit === 'kilogramme' || unit === 'kilogrammes') unit = 'kg';
     if (unit === 'pound' || unit === 'pounds') unit = 'lb';
     if (unit === 'ounce' || unit === 'ounces') unit = 'oz';
     if (unit === 'litre' || unit === 'litres') unit = 'l';
     if (unit === 'milliliter' || unit === 'millilitre' || unit === 'milliliters' || unit === 'millilitres') unit = 'ml';
-    if (unit === 'teaspoon' || unit === 'teaspoons') unit = 'tsp';
-    if (unit === 'tablespoon' || unit === 'tablespoons') unit = 'tbsp';
+    // spoons
+    if (unit === 'teaspoon' || unit === 'teaspoons' || unit === 'cac' || unit === 'càc' || unit === 'cc' || unit === 'cuillereacafe' || unit === 'cuillèreàcafé' || unit === 'cuillereàcafé') unit = 'tsp';
+    if (unit === 'tablespoon' || unit === 'tablespoons' || unit === 'cas' || unit === 'càs' || unit === 'cs' || unit === 'cuillereasoupe' || unit === 'cuillèreàsoupe' || unit === 'cuillereàsoupe') unit = 'tbsp';
+    // cups
+    if (unit === 'tasse' || unit === 'tasses') unit = 'cup';
+    // pieces
     if (unit === 'pcs') unit = 'pc';
-    if (unit === 'pieces') unit = 'piece';
+    if (unit === 'pieces' || unit === 'piece' || unit === 'pièce' || unit === 'pièces') unit = 'piece';
+    // counts map to "unit"
+    if (unit === 'gousse' || unit === 'gousses' || unit === 'tranche' || unit === 'tranches' || unit === 'sachet' || unit === 'sachets' || unit === 'boite' || unit === 'boites' || unit === 'boîte' || unit === 'boîtes') unit = 'unit';
+    // ignore French prepositions captured as unit
+    if (unit === 'de' || unit === 'd' || unit === "d'" || unit === 'd’') unit = null;
   }
   return { qty: isNaN(qty) ? null : qty, unit, name, raw: text };
 }
@@ -119,7 +151,24 @@ function normalizeIngredient(input) {
     const raw = input.raw || '';
     const name = singularizeName(String(input.name || ''));
     const qtyNum = input.qty == null ? null : Number(input.qty);
-    const unit = input.unit ? String(input.unit).toLowerCase() : null;
+    let unit = input.unit ? String(input.unit).toLowerCase() : null;
+    if (unit) {
+      unit = unit.toLowerCase().replace(/\./g, '').replace(/\s+/g, '');
+      if (unit === 'kgs') unit = 'kg';
+      if (unit === 'grams' || unit === 'gr' || unit === 'gms' || unit === 'gramme' || unit === 'grammes') unit = 'g';
+      if (unit === 'kilogramme' || unit === 'kilogrammes') unit = 'kg';
+      if (unit === 'pound' || unit === 'pounds') unit = 'lb';
+      if (unit === 'ounce' || unit === 'ounces') unit = 'oz';
+      if (unit === 'litre' || unit === 'litres') unit = 'l';
+      if (unit === 'milliliter' || unit === 'millilitre' || unit === 'milliliters' || unit === 'millilitres') unit = 'ml';
+      if (unit === 'teaspoon' || unit === 'teaspoons' || unit === 'cac' || unit === 'càc' || unit === 'cc' || unit === 'cuillereacafe' || unit === 'cuillèreàcafé' || unit === 'cuillereàcafé') unit = 'tsp';
+      if (unit === 'tablespoon' || unit === 'tablespoons' || unit === 'cas' || unit === 'càs' || unit === 'cs' || unit === 'cuillereasoupe' || unit === 'cuillèreàsoupe' || unit === 'cuillereàsoupe') unit = 'tbsp';
+      if (unit === 'tasse' || unit === 'tasses') unit = 'cup';
+      if (unit === 'pcs') unit = 'pc';
+      if (unit === 'pieces' || unit === 'piece' || unit === 'pièce' || unit === 'pièces') unit = 'piece';
+      if (unit === 'gousse' || unit === 'gousses' || unit === 'tranche' || unit === 'tranches' || unit === 'sachet' || unit === 'sachets' || unit === 'boite' || unit === 'boites' || unit === 'boîte' || unit === 'boîtes') unit = 'unit';
+      if (unit === 'de' || unit === 'd' || unit === "d'" || unit === 'd’') unit = null;
+    }
     return { qty: isNaN(qtyNum) ? null : qtyNum, unit, name, raw };
   }
   return null;
@@ -196,7 +245,7 @@ app.get('/api/recipes', async (_req, res) => {
     res.json(recipes);
   } catch (error) {
     console.error('GET /api/recipes error:', error);
-    res.status(500).json({ error: 'Failed to fetch recipes' });
+    res.status(500).json({ error: 'Échec de la récupération des recettes' });
   }
 });
 
@@ -207,7 +256,7 @@ app.post('/api/recipes', async (req, res) => {
 
     // Basic validation
     if (!name) {
-      return res.status(400).json({ error: 'Name is required' });
+      return res.status(400).json({ error: 'Le nom est requis' });
     }
 
     // Parse ingredients into structured objects
@@ -215,7 +264,7 @@ app.post('/api/recipes', async (req, res) => {
     if (!structured) {
       return res
         .status(400)
-        .json({ error: 'Ingredients must be an array or a string list' });
+        .json({ error: 'Les ingrédients doivent être un tableau ou une liste de texte' });
     }
 
     const newRecipe = new Recipe({
@@ -232,7 +281,7 @@ app.post('/api/recipes', async (req, res) => {
     res.status(201).json(saved);
   } catch (error) {
     console.error('POST /api/recipes error:', error);
-    res.status(500).json({ error: 'Failed to add recipe' });
+    res.status(500).json({ error: 'Échec de l’ajout de la recette' });
   }
 });
 
@@ -243,18 +292,18 @@ app.delete('/api/recipes/:id', async (req, res) => {
 
     // Validate ObjectId
     if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({ error: 'Invalid recipe ID' });
+      return res.status(400).json({ error: 'ID de recette invalide' });
     }
 
     const deleted = await Recipe.findByIdAndDelete(id);
     if (!deleted) {
-      return res.status(404).json({ error: 'Recipe not found' });
+      return res.status(404).json({ error: 'Recette introuvable' });
     }
 
-    res.json({ message: 'Recipe deleted', id });
+    res.json({ message: 'Recette supprimée', id });
   } catch (error) {
     console.error('DELETE /api/recipes/:id error:', error);
-    res.status(500).json({ error: 'Failed to delete recipe' });
+    res.status(500).json({ error: 'Échec de la suppression de la recette' });
   }
 });
 
@@ -266,11 +315,11 @@ app.put('/api/recipes/:id/mealplan', async (req, res) => {
 
     // Validate ObjectId
     if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({ error: 'Invalid recipe ID' });
+      return res.status(400).json({ error: 'ID de recette invalide' });
     }
 
     if (typeof mealPlan !== 'object' || mealPlan === null) {
-      return res.status(400).json({ error: 'mealPlan must be an object' });
+      return res.status(400).json({ error: 'mealPlan doit être un objet' });
     }
 
     // Only allow known structure (days with breakfast/lunch/dinner as strings)
@@ -340,13 +389,13 @@ app.put('/api/recipes/:id/mealplan', async (req, res) => {
     );
 
     if (!updated) {
-      return res.status(404).json({ error: 'Recipe not found' });
+      return res.status(404).json({ error: 'Recette introuvable' });
     }
 
     res.json(updated);
   } catch (error) {
     console.error('PUT /api/recipes/:id/mealplan error:', error);
-    res.status(500).json({ error: 'Failed to update meal plan' });
+    res.status(500).json({ error: 'Échec de la mise à jour du plan de repas' });
   }
 });
 
@@ -357,7 +406,7 @@ app.use(express.static(frontendDir));
 // SPA fallback: send index.html for non-API routes
 app.get('*', (req, res) => {
   if (req.path.startsWith('/api/')) {
-    return res.status(404).json({ error: 'Not found' });
+    return res.status(404).json({ error: 'Non trouvé' });
   }
   res.sendFile(path.join(frontendDir, 'index.html'));
 });

@@ -29,6 +29,16 @@ const PLAN_NAME = "__WEEKLY_PLAN__";
 const DAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
 const MEALS = ["breakfast", "lunch", "dinner"];
 
+const DAY_LABELS_FR = {
+  monday: "Lundi",
+  tuesday: "Mardi",
+  wednesday: "Mercredi",
+  thursday: "Jeudi",
+  friday: "Vendredi",
+  saturday: "Samedi",
+  sunday: "Dimanche"
+};
+
 // State
 let allRecipes = [];         // includes the plan doc
 let planDoc = null;          // the special doc containing mealPlan
@@ -113,9 +123,9 @@ function renderRecipesList() {
   recipesListEl.innerHTML = "";
   const visibleRecipes = allRecipes.filter((r) => !isPlanDoc(r));
 
-  if (visibleRecipes.length === 0) {
+if (visibleRecipes.length === 0) {
     const li = document.createElement("li");
-    li.textContent = "No recipes yet. Add one above.";
+    li.textContent = "Aucune recette pour le moment. Ajoutez-en une ci-dessus.";
     recipesListEl.appendChild(li);
     return;
   }
@@ -130,7 +140,7 @@ function renderRecipesList() {
     name.textContent = r.name;
     const ingCount = document.createElement("span");
     ingCount.className = "muted";
-    ingCount.textContent = ` • ${r.ingredients.length} ingredient(s)`;
+ingCount.textContent = ` • ${r.ingredients.length} ingrédient(s)`;
     left.appendChild(name);
     left.appendChild(ingCount);
 
@@ -139,11 +149,11 @@ function renderRecipesList() {
 
     const editBtn = document.createElement("button");
     editBtn.className = "secondary";
-    editBtn.textContent = "Edit";
+editBtn.textContent = "Modifier";
     editBtn.addEventListener("click", () => startEditRecipe(r));
 
-    const delBtn = document.createElement("button");
-    delBtn.textContent = "Delete";
+const delBtn = document.createElement("button");
+    delBtn.textContent = "Supprimer";
     delBtn.addEventListener("click", () => handleDeleteRecipe(r._id));
 
     right.appendChild(editBtn);
@@ -160,13 +170,13 @@ function renderMealPlanGrid() {
   mealPlanBodyEl.innerHTML = "";
 
   const recipesForSelect = allRecipes.filter((r) => !isPlanDoc(r));
-  const recipeOptions = [{ _id: "", name: "— None —" }, ...recipesForSelect];
+const recipeOptions = [{ _id: "", name: "— Aucun —" }, ...recipesForSelect];
 
   for (const day of DAYS) {
     const tr = document.createElement("tr");
 
     const dayCell = document.createElement("td");
-    dayCell.textContent = day[0].toUpperCase() + day.slice(1);
+dayCell.textContent = DAY_LABELS_FR[day] || (day[0].toUpperCase() + day.slice(1));
     tr.appendChild(dayCell);
 
     for (const meal of MEALS) {
@@ -197,7 +207,7 @@ function renderMealPlanGrid() {
       servingsInput.type = "number";
       servingsInput.min = "1";
       servingsInput.className = "servings-input";
-      servingsInput.placeholder = "Serv.";
+servingsInput.placeholder = "Pers.";
       servingsInput.style.marginLeft = "8px";
       servingsInput.style.width = "70px";
 
@@ -243,7 +253,7 @@ function renderMealPlanGrid() {
             body: JSON.stringify({ mealPlan: planDoc.mealPlan })
           });
         } catch (err) {
-          alert("Failed to update meal plan. See console for details.");
+alert("Échec de la mise à jour du plan de repas. Voir la console pour plus de détails.");
           console.error(err);
           await refreshAll();
         }
@@ -264,8 +274,8 @@ function renderMealPlanGrid() {
             method: "PUT",
             body: JSON.stringify({ mealPlan: planDoc.mealPlan })
           });
-        } catch (err) {
-          alert("Failed to update meal plan. See console for details.");
+} catch (err) {
+          alert("Échec de la mise à jour du plan de repas. Voir la console pour plus de détails.");
           console.error(err);
           await refreshAll();
         }
@@ -284,12 +294,12 @@ function renderGroceryList(items) {
   groceryListEl.innerHTML = "";
   if (!items || items.length === 0) {
     const li = document.createElement("li");
-    li.textContent = "No ingredients. Assign recipes in the meal plan first.";
+    li.textContent = "Aucun ingrédient. Assignez des recettes dans le plan de repas.";
     groceryListEl.appendChild(li);
     return;
   }
 
-  const sorted = items.slice().sort((a, b) => a.localeCompare(b));
+  const sorted = items.slice().sort((a, b) => a.localeCompare(b, "fr", { sensitivity: "base" }));
   for (const item of sorted) {
     const li = document.createElement("li");
     li.textContent = item;
@@ -301,20 +311,50 @@ function renderGroceryList(items) {
 const MASS_UNITS = { kg: 1000, g: 1, lb: 453.59237, lbs: 453.59237, oz: 28.349523125 };
 const VOLUME_UNITS = { l: 1000, liter: 1000, liters: 1000, dl: 100, cl: 10, ml: 1, tsp: 5, tbsp: 15, cup: 240, cups: 240 };
 const COUNT_UNITS = new Set(["unit", "pc", "piece", "x", "count"]);
-const IRREGULARS = { tomatoes: "tomato", potatoes: "potato", leaves: "leaf" };
+const IRREGULARS = {
+  // English
+  tomatoes: "tomato",
+  potatoes: "potato",
+  leaves: "leaf",
+  // French
+  "tomates": "tomate",
+  "oignons": "oignon",
+  "poivrons": "poivron",
+  "carottes": "carotte",
+  "œufs": "œuf",
+  "oeufs": "œuf",
+  "choux": "chou",
+  "eaux": "eau",
+  "feuilles": "feuille",
+  "gousses": "gousse",
+  "tranches": "tranche",
+  "pommes de terre": "pomme de terre"
+};
 
 function normalizeName(name) {
-  const n = String(name || "").toLowerCase().trim().replace(/\s+/g, " ");
+  let n = String(name || "").toLowerCase().trim().replace(/\s+/g, " ");
+  // Remove common French determiners/prepositions
+  n = n.replace(/^(?:de|d'|d’|du|des|de la|de l'|de l’)\s+/i, "");
+  // Normalize irregulars first (EN + FR)
   if (IRREGULARS[n]) return IRREGULARS[n];
+  // English plural handling
   if (n.endsWith("ies")) return n.slice(0, -3) + "y";
   if (n.endsWith("es") && !n.endsWith("ses")) return n.slice(0, -2);
   if (n.endsWith("s") && !n.endsWith("ss")) return n.slice(0, -1);
+  // Specific French plural patterns
+  if (n.endsWith("eaux")) return n.slice(0, -1); // eaux -> eau
   return n;
 }
 
 function normalizeUnit(unit) {
   if (!unit) return null;
   let u = String(unit).toLowerCase();
+  // Strip dots/spaces for abbreviations like c.à.s.
+  u = u.replace(/\./g, "").replace(/\s+/g, "");
+  // Ignore French prepositions captured as "units"
+  if (u === "de" || u === "d" || u === "d'" || u === "d’") return null;
+
+  // English variants
   if (u === "kgs") u = "kg";
   if (u === "grams" || u === "gr" || u === "gms") u = "g";
   if (u === "pound" || u === "pounds") u = "lb";
@@ -325,6 +365,23 @@ function normalizeUnit(unit) {
   if (u === "tablespoon" || u === "tablespoons") u = "tbsp";
   if (u === "pcs") u = "pc";
   if (u === "pieces") u = "piece";
+
+  // French variants
+  if (u === "gramme" || u === "grammes") u = "g";
+  if (u === "kilogramme" || u === "kilogrammes") u = "kg";
+  if (u === "litre" || u === "litres") u = "l";
+  if (u === "millilitre" || u === "millilitres") u = "ml";
+  if (u === "tasse" || u === "tasses") u = "cup";
+
+  // cuillère à café
+  if (u === "cac" || u === "càc" || u === "cc" || u === "càco" || u === "cuillereacafe" || u === "cuillèreàcafé" || u === "cuillereàcafé") u = "tsp";
+  // cuillère à soupe
+  if (u === "cas" || u === "càs" || u === "cs" || u === "cuillereasoupe" || u === "cuillèreàsoupe" || u === "cuillereàsoupe") u = "tbsp";
+
+  // counts
+  if (u === "piece" || u === "pièce" || u === "pièces") u = "piece";
+  if (u === "gousse" || u === "gousses" || u === "tranche" || u === "tranches" || u === "sachet" || u === "sachets" || u === "boite" || u === "boites" || u === "boîte" || u === "boîtes") u = "unit";
+
   return u;
 }
 
@@ -353,7 +410,7 @@ function parseIngredientClient(ing) {
   }
   const text = String(ing || "").trim();
   if (!text) return null;
-  const m = text.match(/^(\d+(?:[.,]\d+)?)\s*([a-zA-Z]+)?\s+(.*)$/);
+const m = text.match(/^(\d+(?:[.,]\d+)?)\s*([^\s\d]+)?\s+(.*)$/u);
   let qty = null, unit = null, name = text;
   if (m) {
     qty = parseFloat(m[1].replace(",", "."));
@@ -366,7 +423,7 @@ function parseIngredientClient(ing) {
 
 function formatNumber(n) {
   const rounded = Math.round(n * 100) / 100;
-  return Number.isInteger(rounded) ? String(rounded) : String(rounded.toFixed(2)).replace(/\.00$/, "").replace(/(\.\d)0$/, "$1");
+  return new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 2 }).format(rounded);
 }
 
 // Grocery list logic
@@ -428,7 +485,8 @@ function generateGroceryList() {
 
   for (const [key, total] of sums.entries()) {
     const [name, unit] = key.split("||");
-    items.push(`${formatNumber(total)} ${unit} ${name}`);
+    const displayUnit = unit === "unit" ? (total > 1 ? "pièces" : "pièce") : unit;
+    items.push(`${formatNumber(total)} ${displayUnit ? displayUnit + " " : ""}${name}`);
   }
 
   for (const name of namesOnly) {
@@ -472,7 +530,7 @@ function resetForm() {
 }
 
 async function handleDeleteRecipe(id) {
-  if (!confirm("Delete this recipe?")) return;
+if (!confirm("Supprimer cette recette ?")) return;
   try {
     await api(`/api/recipes/${id}`, { method: "DELETE" });
 
@@ -502,8 +560,8 @@ async function handleDeleteRecipe(id) {
     }
 
     await refreshAll();
-  } catch (err) {
-    alert("Failed to delete recipe. See console for details.");
+} catch (err) {
+    alert("Échec de la suppression de la recette. Voir la console pour plus de détails.");
     console.error(err);
   }
 }
@@ -514,8 +572,8 @@ recipeForm.addEventListener("submit", async (e) => {
   const ingredientsStr = ingredientsInput.value;
   const baseServings = Math.max(1, parseInt(baseServingsInput.value, 10) || 1);
 
-  if (!name) {
-    alert("Name is required.");
+if (!name) {
+    alert("Le nom est requis.");
     return;
   }
 
@@ -538,8 +596,8 @@ recipeForm.addEventListener("submit", async (e) => {
 
     resetForm();
     await refreshAll();
-  } catch (err) {
-    alert("Failed to save recipe. See console for details.");
+} catch (err) {
+    alert("Échec de l’enregistrement de la recette. Voir la console pour plus de détails.");
     console.error(err);
   }
 });
@@ -552,8 +610,8 @@ cancelEditBtn.addEventListener("click", () => {
 generateGroceryBtn.addEventListener("click", () => {
   try {
     generateGroceryList();
-  } catch (err) {
-    alert("Failed to generate grocery list. See console for details.");
+} catch (err) {
+    alert("Échec de la génération de la liste de courses. Voir la console pour plus de détails.");
     console.error(err);
   }
 });
@@ -571,6 +629,6 @@ async function refreshAll() {
     await refreshAll();
   } catch (err) {
     console.error("Initialization failed:", err);
-    alert("Failed to load data from API. Ensure the backend is running and API_BASE is correct.");
+alert("Échec du chargement des données depuis l’API. Assurez-vous que le backend est démarré et que API_BASE est correct.");
   }
 })();
