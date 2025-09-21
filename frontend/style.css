@@ -46,7 +46,7 @@ header h1 {
 main {
   max-width: 1000px;
   margin: 0 auto;
-  padding: 8px 16px 88px; /* extra bottom padding for fixed tabbar */
+  padding: 8px 16px 16px;
   display: grid;
   grid-template-columns: 1fr;
   gap: 16px;
@@ -201,17 +201,14 @@ footer {
   color: var(--muted);
 }
 
-/* Bottom Tab Bar (mobile) */
+/* Top Tab Bar */
 .tabbar {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  position: static;
   display: flex;
   gap: 8px;
-  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
   background: var(--card);
-  padding: 6px 12px calc(6px + env(safe-area-inset-bottom));
+  padding: 6px 12px;
   z-index: 1000;
 }
 
@@ -258,37 +255,11 @@ footer {
   /* Tab bar can be hidden on desktop if desired */
   .tabbar {
     position: static;
-    border: 0;
-    padding: 0;
     gap: 12px;
     max-width: 1000px;
-    margin: -8px auto 8px;
-    background: transparent;
-  }
-}
-
-/* Dark mode */
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #0b0d12;
-    --card: #0f141b;
-    --text: #e6e8ee;
-    --muted: #9aa4b2;
-    --border: #1f2733;
-    --primary-contrast: #ffffff;
-  }
-
-  thead th {
-    background: #111824;
-  }
-
-  button.secondary {
-    background: #19202b;
-    color: #e6e8ee;
-  }
-
-  .tabbar button[aria-selected="true"] {
-    background: rgba(37, 99, 235, 0.18);
-    border-color: rgba(37, 99, 235, 0.28);
+    margin: 0 auto 8px;
+    padding: 6px 12px;
+    border-bottom: 1px solid var(--border);
+    background: var(--card);
   }
 }
