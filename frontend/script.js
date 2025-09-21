@@ -4,7 +4,7 @@
  * OurMeals Frontend
  * - Fetch recipes from backend API
  * - Add/Delete recipes
- * - Maintain a Weekly Meal Plan stored in a special plan document
+ * - Maintain a date-indexed Meal Plan stored in a special plan document
  * - Generate grocery list from selected recipes
  *
  * Backend endpoints used:
@@ -21,23 +21,12 @@ const API_BASE =
     ? window.API_BASE
     : ((location.hostname === "localhost" || location.hostname === "127.0.0.1") ? "http://localhost:5000" : "");
 
-// Special hidden recipe used to store the global weekly meal plan.
+// Special hidden recipe used to store the global meal plan.
 // This stays out of the visible recipe list.
 const PLAN_NAME = "__WEEKLY_PLAN__";
 
-// Days and meals used for the planner grid
-const DAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
+// Meals used for the planner grid
 const MEALS = ["breakfast", "lunch", "dinner"];
-
-const DAY_LABELS_FR = {
-  monday: "Lundi",
-  tuesday: "Mardi",
-  wednesday: "Mercredi",
-  thursday: "Jeudi",
-  friday: "Vendredi",
-  saturday: "Samedi",
-  sunday: "Dimanche"
-};
 
 // State
 let allRecipes = [];         // includes the plan doc
@@ -74,12 +63,46 @@ const api = async (path, options = {}) => {
   }
 };
 
-const emptyMealPlan = () => {
-  const obj = {};
-  for (const d of DAYS) {
-    obj[d] = { breakfast: "", lunch: "", dinner: "" };
+/* Dates utilitaires pour la plage dynamique (FR) */
+function toDateKey(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${dd}`;
+}
+function addDays(d, n) {
+  const x = new Date(d);
+  x.setDate(x.getDate() + n);
+  x.setHours(0, 0, 0, 0);
+  return x;
+}
+function isoWeekMonday(d) {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  const k = (x.getDay() + 6) % 7; // 0 = lundi
+  return addDays(x, -k);
+}
+function computeRange(today = new Date()) {
+  const start = addDays(today, -2);
+  const nextWeekMonday = addDays(isoWeekMonday(today), 7);
+  const end = addDays(nextWeekMonday, 6); // dimanche de la semaine prochaine
+  const fmt = new Intl.DateTimeFormat("fr-FR", { weekday: "long", day: "2-digit", month: "2-digit" });
+  const out = [];
+  for (let d = start; d <= end; d = addDays(d, 1)) {
+    out.push({ date: new Date(d), key: toDateKey(d), label: fmt.format(d) });
   }
-  return obj;
+  return out;
+}
+function ensureDay(plan, key) {
+  if (!plan[key]) plan[key] = { breakfast: "", lunch: "", dinner: "" };
+  return plan[key];
+}
+function capitalizeFirst(s) {
+  return s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+}
+
+const emptyMealPlan = () => {
+  return {};
 };
 
 const isPlanDoc = (doc) => doc && doc.name === PLAN_NAME;
@@ -98,12 +121,12 @@ async function loadRecipesAndPlan() {
       method: "POST",
       body: JSON.stringify({
         name: PLAN_NAME,
-        ingredients: [],         // not used
+        ingredients: [] // not used
       })
     });
 
-    // After creating plan doc, ensure mealPlan is initialized (backend defaults it, but double-sure)
-    planDoc.mealPlan = planDoc.mealPlan || emptyMealPlan();
+    // After creating plan doc, ensure mealPlan is initialized as date-indexed object
+    planDoc.mealPlan = planDoc.mealPlan || {};
 
     // Refresh overall list to include it
     allRecipes = await api("/api/recipes");
@@ -113,7 +136,7 @@ async function loadRecipesAndPlan() {
   if (!planDoc.mealPlan) {
     planDoc = await api(`/api/recipes/${planDoc._id}/mealplan`, {
       method: "PUT",
-      body: JSON.stringify({ mealPlan: emptyMealPlan() })
+      body: JSON.stringify({ mealPlan: {} })
     });
   }
 }
@@ -123,7 +146,7 @@ function renderRecipesList() {
   recipesListEl.innerHTML = "";
   const visibleRecipes = allRecipes.filter((r) => !isPlanDoc(r));
 
-if (visibleRecipes.length === 0) {
+  if (visibleRecipes.length === 0) {
     const li = document.createElement("li");
     li.textContent = "Aucune recette pour le moment. Ajoutez-en une ci-dessus.";
     recipesListEl.appendChild(li);
@@ -140,7 +163,7 @@ if (visibleRecipes.length === 0) {
     name.textContent = r.name;
     const ingCount = document.createElement("span");
     ingCount.className = "muted";
-ingCount.textContent = ` • ${r.ingredients.length} ingrédient(s)`;
+    ingCount.textContent = ` • ${r.ingredients.length} ingrédient(s)`;
     left.appendChild(name);
     left.appendChild(ingCount);
 
@@ -149,10 +172,10 @@ ingCount.textContent = ` • ${r.ingredients.length} ingrédient(s)`;
 
     const editBtn = document.createElement("button");
     editBtn.className = "secondary";
-editBtn.textContent = "Modifier";
+    editBtn.textContent = "Modifier";
     editBtn.addEventListener("click", () => startEditRecipe(r));
 
-const delBtn = document.createElement("button");
+    const delBtn = document.createElement("button");
     delBtn.textContent = "Supprimer";
     delBtn.addEventListener("click", () => handleDeleteRecipe(r._id));
 
@@ -170,13 +193,16 @@ function renderMealPlanGrid() {
   mealPlanBodyEl.innerHTML = "";
 
   const recipesForSelect = allRecipes.filter((r) => !isPlanDoc(r));
-const recipeOptions = [{ _id: "", name: "— Aucun —" }, ...recipesForSelect];
+  const recipeOptions = [{ _id: "", name: "— Aucun —" }, ...recipesForSelect];
 
-  for (const day of DAYS) {
+  const range = computeRange(new Date());
+
+  for (const entry of range) {
+    const { key: dateKey, label } = entry;
     const tr = document.createElement("tr");
 
     const dayCell = document.createElement("td");
-dayCell.textContent = DAY_LABELS_FR[day] || (day[0].toUpperCase() + day.slice(1));
+    dayCell.textContent = capitalizeFirst(label);
     tr.appendChild(dayCell);
 
     for (const meal of MEALS) {
@@ -190,8 +216,8 @@ dayCell.textContent = DAY_LABELS_FR[day] || (day[0].toUpperCase() + day.slice(1)
         select.appendChild(optionEl);
       }
 
-      // Read current slot (supports legacy string or new object)
-      const slotVal = (planDoc.mealPlan?.[day]?.[meal]);
+      // Read current slot (string id or object {id, servings})
+      const slotVal = (planDoc.mealPlan?.[dateKey]?.[meal]);
       let selectedId = "";
       let slotServings = null;
       if (typeof slotVal === "string") {
@@ -207,7 +233,7 @@ dayCell.textContent = DAY_LABELS_FR[day] || (day[0].toUpperCase() + day.slice(1)
       servingsInput.type = "number";
       servingsInput.min = "1";
       servingsInput.className = "servings-input";
-servingsInput.placeholder = "Pers.";
+      servingsInput.placeholder = "Pers.";
       servingsInput.style.marginLeft = "8px";
       servingsInput.style.width = "70px";
 
@@ -232,10 +258,11 @@ servingsInput.placeholder = "Pers.";
       select.addEventListener("change", async (e) => {
         const newId = e.target.value;
         try {
-          if (!planDoc.mealPlan) planDoc.mealPlan = emptyMealPlan();
+          if (!planDoc.mealPlan) planDoc.mealPlan = {};
+          const dayObj = ensureDay(planDoc.mealPlan, dateKey);
 
           if (!newId) {
-            planDoc.mealPlan[day][meal] = "";
+            dayObj[meal] = "";
             servingsInput.value = "";
             servingsInput.disabled = true;
           } else {
@@ -245,7 +272,7 @@ servingsInput.placeholder = "Pers.";
             if (!Number.isFinite(s) || s < 1) s = baseS;
             servingsInput.value = String(s);
             servingsInput.disabled = false;
-            planDoc.mealPlan[day][meal] = { id: newId, servings: s };
+            dayObj[meal] = { id: newId, servings: s };
           }
 
           planDoc = await api(`/api/recipes/${planDoc._id}/mealplan`, {
@@ -253,7 +280,7 @@ servingsInput.placeholder = "Pers.";
             body: JSON.stringify({ mealPlan: planDoc.mealPlan })
           });
         } catch (err) {
-alert("Échec de la mise à jour du plan de repas. Voir la console pour plus de détails.");
+          alert("Échec de la mise à jour du plan de repas. Voir la console pour plus de détails.");
           console.error(err);
           await refreshAll();
         }
@@ -268,13 +295,14 @@ alert("Échec de la mise à jour du plan de repas. Voir la console pour plus de 
         e.target.value = String(s);
 
         try {
-          if (!planDoc.mealPlan) planDoc.mealPlan = emptyMealPlan();
-          planDoc.mealPlan[day][meal] = { id: currentId, servings: s };
+          if (!planDoc.mealPlan) planDoc.mealPlan = {};
+          const dayObj = ensureDay(planDoc.mealPlan, dateKey);
+          dayObj[meal] = { id: currentId, servings: s };
           planDoc = await api(`/api/recipes/${planDoc._id}/mealplan`, {
             method: "PUT",
             body: JSON.stringify({ mealPlan: planDoc.mealPlan })
           });
-} catch (err) {
+        } catch (err) {
           alert("Échec de la mise à jour du plan de repas. Voir la console pour plus de détails.");
           console.error(err);
           await refreshAll();
@@ -410,7 +438,7 @@ function parseIngredientClient(ing) {
   }
   const text = String(ing || "").trim();
   if (!text) return null;
-const m = text.match(/^(\d+(?:[.,]\d+)?)\s*([^\s\d]+)?\s+(.*)$/u);
+  const m = text.match(/^(\d+(?:[.,]\d+)?)\s*([^\s\d]+)?\s+(.*)$/u);
   let qty = null, unit = null, name = text;
   if (m) {
     qty = parseFloat(m[1].replace(",", "."));
@@ -431,9 +459,12 @@ function generateGroceryList() {
   const sums = new Map(); // key: "name||baseUnit" -> total qty in base
   const namesOnly = new Set();
 
-  for (const day of DAYS) {
+  const range = computeRange(new Date());
+
+  for (const entry of range) {
+    const dateKey = entry.key;
     for (const meal of MEALS) {
-      const slotVal = (planDoc.mealPlan?.[day]?.[meal]);
+      const slotVal = (planDoc.mealPlan?.[dateKey]?.[meal]);
       let id = "";
       let desiredServings = null;
       if (typeof slotVal === "string") {
@@ -530,23 +561,24 @@ function resetForm() {
 }
 
 async function handleDeleteRecipe(id) {
-if (!confirm("Supprimer cette recette ?")) return;
+  if (!confirm("Supprimer cette recette ?")) return;
   try {
     await api(`/api/recipes/${id}`, { method: "DELETE" });
 
-    // Clean up any references in the plan
+    // Clean up any references in the plan (toutes les dates)
     let changed = false;
-    for (const d of DAYS) {
+    const keys = Object.keys(planDoc?.mealPlan || {});
+    for (const dKey of keys) {
       for (const m of MEALS) {
-        const slotVal = planDoc.mealPlan?.[d]?.[m];
+        const slotVal = planDoc.mealPlan?.[dKey]?.[m];
         if (typeof slotVal === "string") {
           if (slotVal === id) {
-            planDoc.mealPlan[d][m] = "";
+            planDoc.mealPlan[dKey][m] = "";
             changed = true;
           }
         } else if (slotVal && typeof slotVal === "object") {
           if (slotVal.id === id) {
-            planDoc.mealPlan[d][m] = "";
+            planDoc.mealPlan[dKey][m] = "";
             changed = true;
           }
         }
@@ -560,7 +592,7 @@ if (!confirm("Supprimer cette recette ?")) return;
     }
 
     await refreshAll();
-} catch (err) {
+  } catch (err) {
     alert("Échec de la suppression de la recette. Voir la console pour plus de détails.");
     console.error(err);
   }
@@ -572,7 +604,7 @@ recipeForm.addEventListener("submit", async (e) => {
   const ingredientsStr = ingredientsInput.value;
   const baseServings = Math.max(1, parseInt(baseServingsInput.value, 10) || 1);
 
-if (!name) {
+  if (!name) {
     alert("Le nom est requis.");
     return;
   }
@@ -596,7 +628,7 @@ if (!name) {
 
     resetForm();
     await refreshAll();
-} catch (err) {
+  } catch (err) {
     alert("Échec de l’enregistrement de la recette. Voir la console pour plus de détails.");
     console.error(err);
   }
@@ -610,7 +642,7 @@ cancelEditBtn.addEventListener("click", () => {
 generateGroceryBtn.addEventListener("click", () => {
   try {
     generateGroceryList();
-} catch (err) {
+  } catch (err) {
     alert("Échec de la génération de la liste de courses. Voir la console pour plus de détails.");
     console.error(err);
   }
@@ -629,6 +661,6 @@ async function refreshAll() {
     await refreshAll();
   } catch (err) {
     console.error("Initialization failed:", err);
-alert("Échec du chargement des données depuis l’API. Assurez-vous que le backend est démarré et que API_BASE est correct.");
+    alert("Échec du chargement des données depuis l’API. Assurez-vous que le backend est démarré et que API_BASE est correct.");
   }
 })();

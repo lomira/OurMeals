@@ -215,7 +215,7 @@ const recipeSchema = new mongoose.Schema(
     },
     mealPlan: {
       type: mongoose.Schema.Types.Mixed,
-      default: () => emptyMealPlan()
+      default: () => ({})
     }
   },
   {
@@ -274,7 +274,7 @@ app.post('/api/recipes', async (req, res) => {
         Number.isFinite(Number(baseServings)) && Number(baseServings) >= 1
           ? Math.floor(Number(baseServings))
           : 1,
-      mealPlan: emptyMealPlan()
+      mealPlan: {}
     });
 
     const saved = await newRecipe.save();
@@ -322,64 +322,32 @@ app.put('/api/recipes/:id/mealplan', async (req, res) => {
       return res.status(400).json({ error: 'mealPlan doit être un objet' });
     }
 
-    // Only allow known structure (days with breakfast/lunch/dinner as strings)
-    const days = [
-      'monday',
-      'tuesday',
-      'wednesday',
-      'thursday',
-      'friday',
-      'saturday',
-      'sunday'
-    ];
-    const cleaned = emptyMealPlan();
-    for (const day of days) {
-      if (mealPlan[day] && typeof mealPlan[day] === 'object') {
-        const b = mealPlan[day].breakfast;
-        if (typeof b === 'string') {
-          cleaned[day].breakfast = b;
-        } else if (b && typeof b === 'object') {
-          const id = typeof b.id === 'string' ? b.id : '';
-          let servings = null;
-          if (b.servings != null) {
-            const s = Number(b.servings);
-            if (Number.isFinite(s) && s >= 1) servings = Math.floor(s);
-          }
-          cleaned[day].breakfast = id ? { id, servings } : '';
-        } else {
-          cleaned[day].breakfast = '';
-        }
-
-        const l = mealPlan[day].lunch;
-        if (typeof l === 'string') {
-          cleaned[day].lunch = l;
-        } else if (l && typeof l === 'object') {
-          const id = typeof l.id === 'string' ? l.id : '';
-          let servings = null;
-          if (l.servings != null) {
-            const s = Number(l.servings);
-            if (Number.isFinite(s) && s >= 1) servings = Math.floor(s);
-          }
-          cleaned[day].lunch = id ? { id, servings } : '';
-        } else {
-          cleaned[day].lunch = '';
-        }
-
-        const d = mealPlan[day].dinner;
-        if (typeof d === 'string') {
-          cleaned[day].dinner = d;
-        } else if (d && typeof d === 'object') {
-          const id = typeof d.id === 'string' ? d.id : '';
-          let servings = null;
-          if (d.servings != null) {
-            const s = Number(d.servings);
-            if (Number.isFinite(s) && s >= 1) servings = Math.floor(s);
-          }
-          cleaned[day].dinner = id ? { id, servings } : '';
-        } else {
-          cleaned[day].dinner = '';
-        }
+    // Expect date-indexed plan: keys 'YYYY-MM-DD' -> { breakfast, lunch, dinner }
+    const cleaned = {};
+    const isIsoDateKey = (k) => /^\d{4}-\d{2}-\d{2}$/.test(k);
+    const sanitizeSlot = (v) => {
+      if (typeof v === 'string') {
+        return v; // recipe id string
       }
+      if (v && typeof v === 'object') {
+        const id = typeof v.id === 'string' ? v.id : '';
+        let servings = null;
+        if (v.servings != null) {
+          const s = Number(v.servings);
+          if (Number.isFinite(s) && s >= 1) servings = Math.floor(s);
+        }
+        return id ? { id, servings } : '';
+      }
+      return '';
+    };
+
+    for (const [key, value] of Object.entries(mealPlan)) {
+      if (!isIsoDateKey(key) || typeof value !== 'object' || value === null) continue;
+      const dayObj = { breakfast: '', lunch: '', dinner: '' };
+      dayObj.breakfast = sanitizeSlot(value.breakfast);
+      dayObj.lunch = sanitizeSlot(value.lunch);
+      dayObj.dinner = sanitizeSlot(value.dinner);
+      cleaned[key] = dayObj;
     }
 
     const updated = await Recipe.findByIdAndUpdate(
