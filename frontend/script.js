@@ -335,6 +335,28 @@ function renderGroceryList(items) {
   }
 }
 
+function setGroceryStartDateBounds() {
+  const input = document.getElementById("grocery-start-date");
+  if (!input) return;
+
+  const range = computeRange(new Date());
+  if (!Array.isArray(range) || range.length === 0) return;
+
+  const minKey = range[0].key;
+  const maxKey = range[range.length - 1].key;
+  input.min = minKey;
+  input.max = maxKey;
+
+  const todayKey = toDateKey(new Date());
+  let val = todayKey;
+  if (val < minKey) val = minKey;
+  if (val > maxKey) val = maxKey;
+
+  if (!input.value || input.value < minKey || input.value > maxKey) {
+    input.value = val;
+  }
+}
+
 /* Ingredient parsing and normalization (frontend) */
 const MASS_UNITS = { kg: 1000, g: 1, lb: 453.59237, lbs: 453.59237, oz: 28.349523125 };
 const VOLUME_UNITS = { l: 1000, liter: 1000, liters: 1000, dl: 100, cl: 10, ml: 1, tsp: 5, tbsp: 15, cup: 240, cups: 240 };
@@ -455,11 +477,11 @@ function formatNumber(n) {
 }
 
 // Grocery list logic
-function generateGroceryList() {
+function generateGroceryList(startKey) {
   const sums = new Map(); // key: "name||baseUnit" -> total qty in base
   const namesOnly = new Set();
 
-  const range = computeRange(new Date());
+  const range = computeRange(new Date()).filter((e) => !startKey || e.key >= startKey);
 
   for (const entry of range) {
     const dateKey = entry.key;
@@ -641,7 +663,9 @@ cancelEditBtn.addEventListener("click", () => {
 // Grocery list button
 generateGroceryBtn.addEventListener("click", () => {
   try {
-    generateGroceryList();
+    const startEl = document.getElementById("grocery-start-date");
+    const startKey = startEl && startEl.value ? startEl.value : null;
+    generateGroceryList(startKey);
   } catch (err) {
     alert("Échec de la génération de la liste de courses. Voir la console pour plus de détails.");
     console.error(err);
@@ -653,6 +677,7 @@ async function refreshAll() {
   await loadRecipesAndPlan();
   renderRecipesList();
   renderMealPlanGrid();
+  setGroceryStartDateBounds();
 }
 
 // Initialize app
