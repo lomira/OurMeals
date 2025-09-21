@@ -159,42 +159,14 @@ const recipeSchema = new mongoose.Schema(
         message: 'Ingredients must be an array'
       }
     },
+    baseServings: {
+      type: Number,
+      default: 1,
+      min: 1
+    },
     mealPlan: {
-      monday: {
-        breakfast: { type: String, default: '' },
-        lunch: { type: String, default: '' },
-        dinner: { type: String, default: '' }
-      },
-      tuesday: {
-        breakfast: { type: String, default: '' },
-        lunch: { type: String, default: '' },
-        dinner: { type: String, default: '' }
-      },
-      wednesday: {
-        breakfast: { type: String, default: '' },
-        lunch: { type: String, default: '' },
-        dinner: { type: String, default: '' }
-      },
-      thursday: {
-        breakfast: { type: String, default: '' },
-        lunch: { type: String, default: '' },
-        dinner: { type: String, default: '' }
-      },
-      friday: {
-        breakfast: { type: String, default: '' },
-        lunch: { type: String, default: '' },
-        dinner: { type: String, default: '' }
-      },
-      saturday: {
-        breakfast: { type: String, default: '' },
-        lunch: { type: String, default: '' },
-        dinner: { type: String, default: '' }
-      },
-      sunday: {
-        breakfast: { type: String, default: '' },
-        lunch: { type: String, default: '' },
-        dinner: { type: String, default: '' }
-      }
+      type: mongoose.Schema.Types.Mixed,
+      default: () => emptyMealPlan()
     }
   },
   {
@@ -231,7 +203,7 @@ app.get('/api/recipes', async (_req, res) => {
 // POST /api/recipes - Add a new recipe
 app.post('/api/recipes', async (req, res) => {
   try {
-    let { name, ingredients } = req.body;
+    let { name, ingredients, baseServings } = req.body;
 
     // Basic validation
     if (!name) {
@@ -249,6 +221,10 @@ app.post('/api/recipes', async (req, res) => {
     const newRecipe = new Recipe({
       name: String(name).trim(),
       ingredients: structured,
+      baseServings:
+        Number.isFinite(Number(baseServings)) && Number(baseServings) >= 1
+          ? Math.floor(Number(baseServings))
+          : 1,
       mealPlan: emptyMealPlan()
     });
 
@@ -310,14 +286,50 @@ app.put('/api/recipes/:id/mealplan', async (req, res) => {
     const cleaned = emptyMealPlan();
     for (const day of days) {
       if (mealPlan[day] && typeof mealPlan[day] === 'object') {
-        cleaned[day].breakfast =
-          typeof mealPlan[day].breakfast === 'string'
-            ? mealPlan[day].breakfast
-            : '';
-        cleaned[day].lunch =
-          typeof mealPlan[day].lunch === 'string' ? mealPlan[day].lunch : '';
-        cleaned[day].dinner =
-          typeof mealPlan[day].dinner === 'string' ? mealPlan[day].dinner : '';
+        const b = mealPlan[day].breakfast;
+        if (typeof b === 'string') {
+          cleaned[day].breakfast = b;
+        } else if (b && typeof b === 'object') {
+          const id = typeof b.id === 'string' ? b.id : '';
+          let servings = null;
+          if (b.servings != null) {
+            const s = Number(b.servings);
+            if (Number.isFinite(s) && s >= 1) servings = Math.floor(s);
+          }
+          cleaned[day].breakfast = id ? { id, servings } : '';
+        } else {
+          cleaned[day].breakfast = '';
+        }
+
+        const l = mealPlan[day].lunch;
+        if (typeof l === 'string') {
+          cleaned[day].lunch = l;
+        } else if (l && typeof l === 'object') {
+          const id = typeof l.id === 'string' ? l.id : '';
+          let servings = null;
+          if (l.servings != null) {
+            const s = Number(l.servings);
+            if (Number.isFinite(s) && s >= 1) servings = Math.floor(s);
+          }
+          cleaned[day].lunch = id ? { id, servings } : '';
+        } else {
+          cleaned[day].lunch = '';
+        }
+
+        const d = mealPlan[day].dinner;
+        if (typeof d === 'string') {
+          cleaned[day].dinner = d;
+        } else if (d && typeof d === 'object') {
+          const id = typeof d.id === 'string' ? d.id : '';
+          let servings = null;
+          if (d.servings != null) {
+            const s = Number(d.servings);
+            if (Number.isFinite(s) && s >= 1) servings = Math.floor(s);
+          }
+          cleaned[day].dinner = id ? { id, servings } : '';
+        } else {
+          cleaned[day].dinner = '';
+        }
       }
     }
 

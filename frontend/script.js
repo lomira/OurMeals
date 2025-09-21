@@ -38,6 +38,7 @@ let editingRecipeId = null;  // when editing an existing recipe (recreate behavi
 const recipeForm = document.getElementById("recipe-form");
 const nameInput = document.getElementById("recipe-name");
 const ingredientsInput = document.getElementById("recipe-ingredients");
+const baseServingsInput = document.getElementById("recipe-servings");
 const recipesListEl = document.getElementById("recipes-list");
 const mealPlanBodyEl = document.getElementById("meal-plan-body");
 const groceryListEl = document.getElementById("grocery-list");
@@ -170,9 +171,8 @@ function renderMealPlanGrid() {
 
     for (const meal of MEALS) {
       const td = document.createElement("td");
-      const select = document.createElement("select");
 
-      // Populate options
+      const select = document.createElement("select");
       for (const opt of recipeOptions) {
         const optionEl = document.createElement("option");
         optionEl.value = opt._id;
@@ -180,19 +180,64 @@ function renderMealPlanGrid() {
         select.appendChild(optionEl);
       }
 
-      // Set current value from plan
-      const currentVal = (planDoc.mealPlan?.[day]?.[meal]) || "";
-      select.value = currentVal;
+      // Read current slot (supports legacy string or new object)
+      const slotVal = (planDoc.mealPlan?.[day]?.[meal]);
+      let selectedId = "";
+      let slotServings = null;
+      if (typeof slotVal === "string") {
+        selectedId = slotVal;
+      } else if (slotVal && typeof slotVal === "object") {
+        selectedId = typeof slotVal.id === "string" ? slotVal.id : "";
+        slotServings = (slotVal.servings != null) ? Number(slotVal.servings) : null;
+      }
+      select.value = selectedId;
 
-      // On change: update local plan and send to backend
+      // Servings input per cell
+      const servingsInput = document.createElement("input");
+      servingsInput.type = "number";
+      servingsInput.min = "1";
+      servingsInput.className = "servings-input";
+      servingsInput.placeholder = "Serv.";
+      servingsInput.style.marginLeft = "8px";
+      servingsInput.style.width = "70px";
+
+      const selectedRecipe = allRecipes.find((r) => r._id === selectedId);
+      const base = selectedRecipe && Number.isFinite(Number(selectedRecipe.baseServings)) && Number(selectedRecipe.baseServings) >= 1
+        ? Math.floor(Number(selectedRecipe.baseServings))
+        : 1;
+
+      const initial = slotServings != null && Number.isFinite(Number(slotServings)) && Number(slotServings) >= 1
+        ? Math.floor(Number(slotServings))
+        : base;
+
+      if (!selectedId) {
+        servingsInput.value = "";
+        servingsInput.disabled = true;
+      } else {
+        servingsInput.value = String(initial);
+        servingsInput.disabled = false;
+      }
+
+      // On select change: update slot id and keep/derive servings
       select.addEventListener("change", async (e) => {
+        const newId = e.target.value;
         try {
-          const newId = e.target.value;
-          // Update local plan
           if (!planDoc.mealPlan) planDoc.mealPlan = emptyMealPlan();
-          planDoc.mealPlan[day][meal] = newId;
 
-          // Persist entire mealPlan to backend
+          if (!newId) {
+            planDoc.mealPlan[day][meal] = "";
+            servingsInput.value = "";
+            servingsInput.disabled = true;
+          } else {
+            const rec = allRecipes.find((r) => r._id === newId);
+            const baseS = rec && Number(rec.baseServings) >= 1 ? Math.floor(Number(rec.baseServings)) : 1;
+            let s = parseInt(servingsInput.value, 10);
+            if (!Number.isFinite(s) || s < 1) s = baseS;
+            servingsInput.value = String(s);
+            servingsInput.disabled = false;
+            planDoc.mealPlan[day][meal] = { id: newId, servings: s };
+          }
+
           planDoc = await api(`/api/recipes/${planDoc._id}/mealplan`, {
             method: "PUT",
             body: JSON.stringify({ mealPlan: planDoc.mealPlan })
@@ -200,12 +245,34 @@ function renderMealPlanGrid() {
         } catch (err) {
           alert("Failed to update meal plan. See console for details.");
           console.error(err);
-          // Re-render to reflect server truth if any
+          await refreshAll();
+        }
+      });
+
+      // On servings change: update slot servings
+      servingsInput.addEventListener("change", async (e) => {
+        const currentId = select.value;
+        if (!currentId) return;
+        let s = parseInt(e.target.value, 10);
+        if (!Number.isFinite(s) || s < 1) s = 1;
+        e.target.value = String(s);
+
+        try {
+          if (!planDoc.mealPlan) planDoc.mealPlan = emptyMealPlan();
+          planDoc.mealPlan[day][meal] = { id: currentId, servings: s };
+          planDoc = await api(`/api/recipes/${planDoc._id}/mealplan`, {
+            method: "PUT",
+            body: JSON.stringify({ mealPlan: planDoc.mealPlan })
+          });
+        } catch (err) {
+          alert("Failed to update meal plan. See console for details.");
+          console.error(err);
           await refreshAll();
         }
       });
 
       td.appendChild(select);
+      td.appendChild(servingsInput);
       tr.appendChild(td);
     }
 
@@ -304,40 +371,55 @@ function formatNumber(n) {
 
 // Grocery list logic
 function generateGroceryList() {
-  const uniqueIds = new Set();
-  for (const day of DAYS) {
-    for (const meal of MEALS) {
-      const id = planDoc.mealPlan?.[day]?.[meal];
-      if (id) uniqueIds.add(id);
-    }
-  }
-
   const sums = new Map(); // key: "name||baseUnit" -> total qty in base
   const namesOnly = new Set();
 
-  for (const id of uniqueIds) {
-    const recipe = allRecipes.find((r) => r._id === id);
-    if (!recipe) continue;
-    for (const ing of (recipe.ingredients || [])) {
-      const p = parseIngredientClient(ing);
-      if (!p || !p.name) continue;
-
-      if (p.qty == null) {
-        namesOnly.add(p.name);
-        continue;
+  for (const day of DAYS) {
+    for (const meal of MEALS) {
+      const slotVal = (planDoc.mealPlan?.[day]?.[meal]);
+      let id = "";
+      let desiredServings = null;
+      if (typeof slotVal === "string") {
+        id = slotVal;
+      } else if (slotVal && typeof slotVal === "object") {
+        id = typeof slotVal.id === "string" ? slotVal.id : "";
+        if (slotVal.servings != null) {
+          const s = Number(slotVal.servings);
+          if (Number.isFinite(s) && s >= 1) desiredServings = Math.floor(s);
+        }
       }
+      if (!id) continue;
 
-      let u = normalizeUnit(p.unit || null);
-      let cat = unitCategory(u);
-      if (!cat) {
-        // If quantity given but no recognized unit, treat as count
-        cat = "count";
-        u = "unit";
+      const recipe = allRecipes.find((r) => r._id === id);
+      if (!recipe) continue;
+
+      const baseServ = Number.isFinite(Number(recipe.baseServings)) && Number(recipe.baseServings) >= 1
+        ? Math.floor(Number(recipe.baseServings))
+        : 1;
+      const desired = (desiredServings != null) ? desiredServings : baseServ;
+      const factor = desired / baseServ;
+
+      for (const ing of (recipe.ingredients || [])) {
+        const p = parseIngredientClient(ing);
+        if (!p || !p.name) continue;
+
+        if (p.qty == null) {
+          namesOnly.add(p.name);
+          continue;
+        }
+
+        let u = normalizeUnit(p.unit || null);
+        let cat = unitCategory(u);
+        if (!cat) {
+          // If quantity given but no recognized unit, treat as count
+          cat = "count";
+          u = "unit";
+        }
+        const [qtyBase, baseUnit] = toBase(p.qty * factor, u, cat);
+        const key = `${p.name}||${baseUnit}`;
+        const prev = sums.get(key) || 0;
+        sums.set(key, prev + qtyBase);
       }
-      const [qtyBase, baseUnit] = toBase(p.qty, u, cat);
-      const key = `${p.name}||${baseUnit}`;
-      const prev = sums.get(key) || 0;
-      sums.set(key, prev + qtyBase);
     }
   }
 
@@ -375,6 +457,7 @@ function startEditRecipe(recipe) {
     return "";
   }).filter(Boolean);
   ingredientsInput.value = lines.join("\n");
+  baseServingsInput.value = (recipe.baseServings && Number(recipe.baseServings) >= 1) ? String(Math.floor(Number(recipe.baseServings))) : "1";
   cancelEditBtn.hidden = false;
   editWarningEl.hidden = false;
   nameInput.focus();
@@ -383,6 +466,7 @@ function startEditRecipe(recipe) {
 function resetForm() {
   editingRecipeId = null;
   recipeForm.reset();
+  baseServingsInput.value = "1";
   cancelEditBtn.hidden = true;
   editWarningEl.hidden = true;
 }
@@ -396,9 +480,17 @@ async function handleDeleteRecipe(id) {
     let changed = false;
     for (const d of DAYS) {
       for (const m of MEALS) {
-        if ((planDoc.mealPlan?.[d]?.[m] || "") === id) {
-          planDoc.mealPlan[d][m] = "";
-          changed = true;
+        const slotVal = planDoc.mealPlan?.[d]?.[m];
+        if (typeof slotVal === "string") {
+          if (slotVal === id) {
+            planDoc.mealPlan[d][m] = "";
+            changed = true;
+          }
+        } else if (slotVal && typeof slotVal === "object") {
+          if (slotVal.id === id) {
+            planDoc.mealPlan[d][m] = "";
+            changed = true;
+          }
         }
       }
     }
@@ -420,6 +512,7 @@ recipeForm.addEventListener("submit", async (e) => {
   e.preventDefault();
   const name = nameInput.value.trim();
   const ingredientsStr = ingredientsInput.value;
+  const baseServings = Math.max(1, parseInt(baseServingsInput.value, 10) || 1);
 
   if (!name) {
     alert("Name is required.");
@@ -438,7 +531,8 @@ recipeForm.addEventListener("submit", async (e) => {
       method: "POST",
       body: JSON.stringify({
         name,
-        ingredients: ingredientsStr // server will normalize to array
+        ingredients: ingredientsStr, // server will normalize to array
+        baseServings
       })
     });
 
