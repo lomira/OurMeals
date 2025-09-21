@@ -213,21 +213,93 @@ function renderMealPlanGrid() {
   }
 }
 
-function renderGroceryList(ingredients) {
+function renderGroceryList(items) {
   groceryListEl.innerHTML = "";
-  if (ingredients.size === 0) {
+  if (!items || items.length === 0) {
     const li = document.createElement("li");
     li.textContent = "No ingredients. Assign recipes in the meal plan first.";
     groceryListEl.appendChild(li);
     return;
   }
 
-  const sorted = Array.from(ingredients).sort((a, b) => a.localeCompare(b));
+  const sorted = items.slice().sort((a, b) => a.localeCompare(b));
   for (const item of sorted) {
     const li = document.createElement("li");
     li.textContent = item;
     groceryListEl.appendChild(li);
   }
+}
+
+/* Ingredient parsing and normalization (frontend) */
+const MASS_UNITS = { kg: 1000, g: 1, lb: 453.59237, lbs: 453.59237, oz: 28.349523125 };
+const VOLUME_UNITS = { l: 1000, liter: 1000, liters: 1000, dl: 100, cl: 10, ml: 1, tsp: 5, tbsp: 15, cup: 240, cups: 240 };
+const COUNT_UNITS = new Set(["unit", "pc", "piece", "x", "count"]);
+const IRREGULARS = { tomatoes: "tomato", potatoes: "potato", leaves: "leaf" };
+
+function normalizeName(name) {
+  const n = String(name || "").toLowerCase().trim().replace(/\s+/g, " ");
+  if (IRREGULARS[n]) return IRREGULARS[n];
+  if (n.endsWith("ies")) return n.slice(0, -3) + "y";
+  if (n.endsWith("es") && !n.endsWith("ses")) return n.slice(0, -2);
+  if (n.endsWith("s") && !n.endsWith("ss")) return n.slice(0, -1);
+  return n;
+}
+
+function normalizeUnit(unit) {
+  if (!unit) return null;
+  let u = String(unit).toLowerCase();
+  if (u === "kgs") u = "kg";
+  if (u === "grams" || u === "gr" || u === "gms") u = "g";
+  if (u === "pound" || u === "pounds") u = "lb";
+  if (u === "ounce" || u === "ounces") u = "oz";
+  if (u === "litre" || u === "litres") u = "l";
+  if (u === "milliliter" || u === "millilitre" || u === "milliliters" || u === "millilitres") u = "ml";
+  if (u === "teaspoon" || u === "teaspoons") u = "tsp";
+  if (u === "tablespoon" || u === "tablespoons") u = "tbsp";
+  if (u === "pcs") u = "pc";
+  if (u === "pieces") u = "piece";
+  return u;
+}
+
+function unitCategory(u) {
+  if (!u) return null;
+  if (u in MASS_UNITS) return "mass";
+  if (u in VOLUME_UNITS) return "volume";
+  if (COUNT_UNITS.has(u)) return "count";
+  return null;
+}
+
+function toBase(qty, unit, category) {
+  if (category === "mass") return [qty * (MASS_UNITS[unit] || 1), "g"];
+  if (category === "volume") return [qty * (VOLUME_UNITS[unit] || 1), "ml"];
+  if (category === "count") return [qty, "unit"];
+  return [qty, unit || ""];
+}
+
+function parseIngredientClient(ing) {
+  // Accept server-structured objects or legacy strings
+  if (ing && typeof ing === "object") {
+    const name = normalizeName(ing.name || "");
+    const qty = ing.qty == null ? null : Number(ing.qty);
+    const unit = normalizeUnit(ing.unit || null);
+    return { qty: Number.isFinite(qty) ? qty : null, unit, name, raw: ing.raw || "" };
+  }
+  const text = String(ing || "").trim();
+  if (!text) return null;
+  const m = text.match(/^(\d+(?:[.,]\d+)?)\s*([a-zA-Z]+)?\s+(.*)$/);
+  let qty = null, unit = null, name = text;
+  if (m) {
+    qty = parseFloat(m[1].replace(",", "."));
+    unit = normalizeUnit(m[2] || null);
+    name = m[3];
+  }
+  name = normalizeName(name);
+  return { qty: Number.isFinite(qty) ? qty : null, unit, name, raw: text };
+}
+
+function formatNumber(n) {
+  const rounded = Math.round(n * 100) / 100;
+  return Number.isInteger(rounded) ? String(rounded) : String(rounded.toFixed(2)).replace(/\.00$/, "").replace(/(\.\d)0$/, "$1");
 }
 
 // Grocery list logic
@@ -240,27 +312,69 @@ function generateGroceryList() {
     }
   }
 
-  const ingredients = new Set();
+  const sums = new Map(); // key: "name||baseUnit" -> total qty in base
+  const namesOnly = new Set();
+
   for (const id of uniqueIds) {
     const recipe = allRecipes.find((r) => r._id === id);
     if (!recipe) continue;
-    for (const ing of recipe.ingredients || []) {
-      const norm = String(ing).trim();
-      if (norm) {
-        // Basic de-duplication (case-insensitive)
-        ingredients.add(norm.toLowerCase());
+    for (const ing of (recipe.ingredients || [])) {
+      const p = parseIngredientClient(ing);
+      if (!p || !p.name) continue;
+
+      if (p.qty == null) {
+        namesOnly.add(p.name);
+        continue;
       }
+
+      let u = normalizeUnit(p.unit || null);
+      let cat = unitCategory(u);
+      if (!cat) {
+        // If quantity given but no recognized unit, treat as count
+        cat = "count";
+        u = "unit";
+      }
+      const [qtyBase, baseUnit] = toBase(p.qty, u, cat);
+      const key = `${p.name}||${baseUnit}`;
+      const prev = sums.get(key) || 0;
+      sums.set(key, prev + qtyBase);
     }
   }
 
-  renderGroceryList(ingredients);
+  const namesInSums = new Set(Array.from(sums.keys()).map((k) => k.split("||")[0]));
+  const items = [];
+
+  for (const [key, total] of sums.entries()) {
+    const [name, unit] = key.split("||");
+    items.push(`${formatNumber(total)} ${unit} ${name}`);
+  }
+
+  for (const name of namesOnly) {
+    if (!namesInSums.has(name)) {
+      items.push(name);
+    }
+  }
+
+  renderGroceryList(items);
 }
 
 // Recipe form handling
 function startEditRecipe(recipe) {
   editingRecipeId = recipe._id;
   nameInput.value = recipe.name;
-  ingredientsInput.value = (recipe.ingredients || []).join("\n");
+  const lines = (recipe.ingredients || []).map((ing) => {
+    if (typeof ing === "string") return ing;
+    if (ing && typeof ing === "object") {
+      if (ing.raw) return ing.raw;
+      const parts = [];
+      if (ing.qty != null && ing.qty !== "") parts.push(String(ing.qty));
+      if (ing.unit) parts.push(String(ing.unit));
+      if (ing.name) parts.push(String(ing.name));
+      return parts.join(" ").trim();
+    }
+    return "";
+  }).filter(Boolean);
+  ingredientsInput.value = lines.join("\n");
   cancelEditBtn.hidden = false;
   editWarningEl.hidden = false;
   nameInput.focus();
