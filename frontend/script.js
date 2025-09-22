@@ -221,7 +221,7 @@ function renderRecipesList() {
 
   if (visibleRecipes.length === 0) {
     const li = document.createElement("li");
-    li.textContent = "Aucune recette pour le moment. Ajoutez-en une ci-dessus.";
+    li.textContent = "Aucune recette pour le moment. Ajoutez-en via le formulaire.";
     recipesListEl.appendChild(li);
     return;
   }
