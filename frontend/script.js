@@ -42,13 +42,11 @@ const recipesListEl = document.getElementById("recipes-list");
 const mealPlanBodyEl = document.getElementById("meal-plan-body");
 const groceryListEl = document.getElementById("grocery-list");
 const generateGroceryBtn = document.getElementById("generate-grocery");
-// Edit form elements
-const editForm = document.getElementById("edit-recipe-form");
-const editNameInput = document.getElementById("edit-recipe-name");
-const editIngredientsInput = document.getElementById("edit-recipe-ingredients");
-const editBaseServingsInput = document.getElementById("edit-recipe-servings");
+/* Unified form extras (single add/edit UI) */
+const saveRecipeBtn = document.getElementById("save-recipe");
 const editCancelBtn = document.getElementById("edit-cancel");
 const editWarningEl = document.getElementById("edit-warning");
+const recipeFormTitle = document.getElementById("recipe-form-title");
 
 // Tabs: bottom navigation and tabpanels
 const tabButtons = {
@@ -635,37 +633,46 @@ function startEditRecipe(recipe) {
   if (typeof setActiveTab === "function") setActiveTab("recettes");
   editingRecipeId = recipe._id;
 
-  // Populate edit form fields
-  if (editNameInput) editNameInput.value = recipe.name;
+  // Populate unified form fields
+  if (nameInput) nameInput.value = recipe.name;
 
-  const lines = (recipe.ingredients || []).map((ing) => {
-    if (typeof ing === "string") return ing;
-    if (ing && typeof ing === "object") {
-      if (ing.raw) return ing.raw;
-      const parts = [];
-      if (typeof ing.qty !== "undefined" && ing.qty !== null && ing.qty !== "") parts.push(String(ing.qty));
-      if (ing.unit) parts.push(String(ing.unit));
-      if (ing.name) parts.push(String(ing.name));
-      return parts.join(" ").trim();
-    }
-    return "";
-  }).filter(Boolean);
+  const lines = (recipe.ingredients || [])
+    .map((ing) => {
+      if (typeof ing === "string") return ing;
+      if (ing && typeof ing === "object") {
+        if (ing.raw) return ing.raw;
+        const parts = [];
+        if (typeof ing.qty !== "undefined" && ing.qty !== null && ing.qty !== "") parts.push(String(ing.qty));
+        if (ing.unit) parts.push(String(ing.unit));
+        if (ing.name) parts.push(String(ing.name));
+        return parts.join(" ").trim();
+      }
+      return "";
+    })
+    .filter(Boolean);
 
-  if (editIngredientsInput) editIngredientsInput.value = lines.join("\n");
-  if (editBaseServingsInput) {
-    editBaseServingsInput.value = (recipe.baseServings && Number(recipe.baseServings) >= 1)
+  if (ingredientsInput) ingredientsInput.value = lines.join("\n");
+  if (baseServingsInput) {
+    baseServingsInput.value = (recipe.baseServings && Number(recipe.baseServings) >= 1)
       ? String(Math.floor(Number(recipe.baseServings)))
       : "1";
   }
 
   if (editWarningEl) editWarningEl.hidden = false;
-  if (editNameInput) editNameInput.focus();
+  if (editCancelBtn) editCancelBtn.hidden = false;
+  if (saveRecipeBtn) saveRecipeBtn.textContent = "Mettre à jour la recette";
+  if (recipeFormTitle) recipeFormTitle.textContent = "Modifier une recette";
+  if (nameInput) nameInput.focus();
 }
 
 function resetForm() {
   editingRecipeId = null;
-  recipeForm.reset();
-  baseServingsInput.value = "1";
+  if (recipeForm) recipeForm.reset();
+  if (baseServingsInput) baseServingsInput.value = "1";
+  if (saveRecipeBtn) saveRecipeBtn.textContent = "Enregistrer la recette";
+  if (recipeFormTitle) recipeFormTitle.textContent = "Ajouter une recette";
+  if (editWarningEl) editWarningEl.hidden = true;
+  if (editCancelBtn) editCancelBtn.hidden = true;
 }
 
 async function handleDeleteRecipe(id) {
@@ -718,13 +725,18 @@ recipeForm.addEventListener("submit", async (e) => {
   }
 
   try {
+    // If editing, delete the old recipe first (no update endpoint)
+    if (editingRecipeId) {
+      await api(`/api/recipes/${editingRecipeId}`, { method: "DELETE" });
+      editingRecipeId = null;
+    }
 
     // Create new recipe
     await api("/api/recipes", {
       method: "POST",
       body: JSON.stringify({
         name,
-        ingredients: ingredientsStr, // server will normalize to array
+        ingredients: ingredientsStr,
         baseServings
       })
     });
@@ -737,46 +749,10 @@ recipeForm.addEventListener("submit", async (e) => {
   }
 });
 
-if (editForm) {
-  editForm.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const name = editNameInput.value.trim();
-    const ingredientsStr = editIngredientsInput.value;
-    const baseServings = Math.max(1, parseInt(editBaseServingsInput.value, 10) || 1);
-
-    if (!name) {
-      alert("Le nom est requis.");
-      return;
-    }
-
-    try {
-      if (editingRecipeId) {
-        await api(`/api/recipes/${editingRecipeId}`, { method: "DELETE" });
-        editingRecipeId = null;
-      }
-
-      await api("/api/recipes", {
-        method: "POST",
-        body: JSON.stringify({
-          name,
-          ingredients: ingredientsStr,
-          baseServings
-        })
-      });
-
-      editForm.reset();
-      await refreshAll();
-    } catch (err) {
-      alert("Échec de l’enregistrement de la recette. Voir la console pour plus de détails.");
-      console.error(err);
-    }
-  });
-}
 
 if (editCancelBtn) {
   editCancelBtn.addEventListener("click", () => {
-    editingRecipeId = null;
-    if (editForm) editForm.reset();
+    resetForm();
   });
 }
 
